@@ -687,7 +687,7 @@ function describeAdapter(adapter: GPUAdapter): string {
 }
 
 /** Particles start scattered in a shell so the first frames read as an assembly. */
-function seedParticles(count: number): Float32Array {
+function seedParticles(count: number): Float32Array<ArrayBuffer> {
   const data = new Float32Array(count * 8);
   for (let i = 0; i < count; i++) {
     const o = i * 8;
