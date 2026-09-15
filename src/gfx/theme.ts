@@ -14,8 +14,8 @@ export type Theme = {
 export const THEMES: Record<ThemeName, Theme> = {
   aurora: {
     name: "aurora",
-    colorA: [0.09, 0.42, 0.95],
-    colorB: [0.35, 0.92, 1.0],
+    colorA: [0.16, 0.56, 1.0],
+    colorB: [0.45, 0.95, 1.0],
     css: { accent: "#36d0ff", accent2: "#7c5cff" },
     label: "aurora — electric blue / cyan",
   },

@@ -18,7 +18,7 @@ export type EngineStatus = {
 
 type Listener = (status: EngineStatus) => void;
 
-const DEFAULT_SHAPE: ShapeName = "triangle";
+const DEFAULT_SHAPE: ShapeName = "lattice";
 const DEFAULT_THEME: ThemeName = "aurora";
 
 function deviceProfile() {
@@ -32,8 +32,8 @@ function deviceProfile() {
     return {
       count: 34_000,
       maxCount: 90_000,
-      pointSize: 0.019,
-      intensity: 0.5,
+      pointSize: 0.017,
+      intensity: 0.62,
       maxDpr: 1.75,
       calm,
     };
@@ -41,7 +41,7 @@ function deviceProfile() {
   return {
     count: cores >= 8 ? 130_000 : 80_000,
     maxCount: 400_000,
-    pointSize: 0.015,
+    pointSize: 0.0125,
     intensity: 0.42,
     maxDpr: 2,
     calm,
@@ -61,17 +61,21 @@ export class FieldEngine {
   private turbulence: number;
   private fallbackReason: string | null = null;
 
-  // Rolling FPS + one-shot quality reduction on slow devices.
+  // Rolling FPS + graceful quality reduction on slow devices.
   private frames = 0;
   private fpsWindowStart = 0;
   private fps = 0;
   private reductions = 0;
   private fpsTimer = 0;
+  /** Established from the first measured window; 30Hz panels and throttled
+   *  tabs are normal, so "slow" has to be judged relative to the display. */
+  private refreshHz = 0;
 
   constructor(canvas: HTMLCanvasElement, surface: HTMLElement) {
     this.canvas = canvas;
     this.surface = surface;
-    this.turbulence = deviceProfile().calm ? 0.24 : 0.85;
+    // Multiplier on each shape's own turbulence constant.
+    this.turbulence = deviceProfile().calm ? 0.35 : 1;
   }
 
   async start(): Promise<void> {
@@ -171,8 +175,17 @@ export class FieldEngine {
         this.frames = 0;
         this.fpsWindowStart = now;
 
+        if (!this.refreshHz && this.fps > 0) {
+          // First full window sets the bar. Snap to the nearest common rate so
+          // a slightly-short first sample doesn't lower it permanently.
+          this.refreshHz = [30, 60, 90, 120, 144].reduce((best, hz) =>
+            Math.abs(hz - this.fps) < Math.abs(best - this.fps) ? hz : best
+          );
+        }
+
         // Two graceful step-downs, then leave it alone.
-        if (this.fps > 0 && this.fps < 42 && this.reductions < 2 && this.backend) {
+        const floor = Math.max(20, this.refreshHz * 0.7);
+        if (this.fps > 0 && this.fps < floor && this.reductions < 2 && this.backend) {
           this.reductions++;
           this.backend.setCount(Math.round(this.backend.count * 0.6));
         }

@@ -1,4 +1,4 @@
-import { SHAPE_ID, type ShapeName } from "./shapes";
+import { SHAPE_ID, SHAPE_PHYSICS, type ShapeName } from "./shapes";
 import type { Theme } from "./theme";
 import {
   cameraBasis,
@@ -88,25 +88,35 @@ fn shapeTarget(id: u32, i: u32, n: f32, t: f32) -> vec3<f32> {
   let r3 = hash11(fi * 5.97 + 27.41);
 
   switch id {
-    // ---- 1 : triangle (the mark) ------------------------------------------
-    case 1u: {
-      let a = vec3<f32>( 0.0,  1.46, 0.0);
-      let b = vec3<f32>(-1.68, -1.18, 0.0);
-      let c = vec3<f32>( 1.68, -1.18, 0.0);
-      let jitter = (hash11(fi * 7.31) - 0.5) * 0.085;
-      // Almost entirely edges: the mark should read as a line of light, not a
-      // filled slab. The few interior particles only add a faint haze.
-      if (r3 < 0.97) {
-        let e = floor(r1 * 3.0);
-        var p = mix(c, a, r2);
-        if (e < 1.0) { p = mix(a, b, r2); }
-        else if (e < 2.0) { p = mix(b, c, r2); }
-        return p + vec3<f32>(0.0, 0.0, jitter);
-      }
-      var u = r1;
-      var v = r2;
-      if (u + v > 1.0) { u = 1.0 - u; v = 1.0 - v; }
-      return a + u * (b - a) + v * (c - a) + vec3<f32>(0.0, 0.0, jitter * 0.7);
+    // ---- 0 : node lattice --------------------------------------------------
+    case 0u: {
+      // An ordered grid where every node is a tight cluster of particles, so
+      // each one reads as a single soft point of light rather than a smear.
+      let cols = 150u;
+      let rows = 100u;
+
+      // Scramble the index before binning. A plain i % cells would hand the
+      // leftover particles to the first N cells, banding one region brighter.
+      var h = i;
+      h = h ^ (h >> 16u);
+      h = h * 2246822519u;
+      h = h ^ (h >> 13u);
+      h = h * 3266489917u;
+      h = h ^ (h >> 16u);
+      let cell = h % (cols * rows);
+
+      let u = f32(cell % cols) / f32(cols - 1u) - 0.5;
+      let v = f32(cell / cols) / f32(rows - 1u) - 0.5;
+      // Spans overshoot the frame so the grid never shows an edge.
+      let x = u * 13.6;
+      let y = v * 9.0;
+      let z = sin(x * 1.05 + t * 0.62) * cos(y * 0.95 - t * 0.44) * 0.52;
+      let jitter = vec3<f32>(
+        hash11(fi * 2.13) - 0.5,
+        hash11(fi * 4.27) - 0.5,
+        hash11(fi * 6.41) - 0.5
+      ) * 0.017;
+      return vec3<f32>(x, y, z) + jitter;
     }
     // ---- 2 : fibonacci sphere ---------------------------------------------
     case 2u: {
@@ -127,15 +137,8 @@ fn shapeTarget(id: u32, i: u32, n: f32, t: f32) -> vec3<f32> {
         (bigR + smallR * cos(v)) * sin(u)
       );
     }
-    // ---- 4 : travelling wave grid -----------------------------------------
+    // ---- 4 : double helix --------------------------------------------------
     case 4u: {
-      let gx = (r1 - 0.5) * 5.4;
-      let gz = (r2 - 0.5) * 5.4;
-      let y = sin(gx * 1.55 + t * 0.9) * cos(gz * 1.55 - t * 0.68) * 0.46;
-      return vec3<f32>(gx, y - 0.15, gz);
-    }
-    // ---- 5 : double helix --------------------------------------------------
-    case 5u: {
       let y = (r2 - 0.5) * 3.5;
       let ang = r2 * 5.0 * TAU + t * 0.25;
       let rad = 0.88;
@@ -145,8 +148,8 @@ fn shapeTarget(id: u32, i: u32, n: f32, t: f32) -> vec3<f32> {
       if (r1 < 0.5) { return s1; }
       return s2;
     }
-    // ---- 6 : spiral galaxy -------------------------------------------------
-    case 6u: {
+    // ---- 5 : spiral galaxy -------------------------------------------------
+    case 5u: {
       let arms = 3.0;
       let arm = floor(r1 * arms);
       let rad = pow(r2, 0.55) * 2.45;
@@ -155,8 +158,8 @@ fn shapeTarget(id: u32, i: u32, n: f32, t: f32) -> vec3<f32> {
       let y = (hash11(fi * 13.77) - 0.5) * 0.4 * exp(-rad * 0.55);
       return vec3<f32>(cos(ang) * rad, y, sin(ang) * rad);
     }
-    // ---- 0 : open field ----------------------------------------------------
-    default: {
+    // ---- 1 : open field ----------------------------------------------------
+    case 1u, default: {
       let th = r1 * TAU;
       let ph = acos(2.0 * r2 - 1.0);
       let rad = 1.3 + r3 * 1.7;
@@ -255,8 +258,7 @@ struct View {
   colorA: vec3<f32>,
   fade: f32,
   colorB: vec3<f32>,
-  ndcOffsetX: f32,
-  tail: vec4<f32>,   // x = ndcOffsetY
+  _pad: f32,
 }
 
 struct VSOut {
@@ -282,10 +284,6 @@ fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VSOut
 
   var out: VSOut;
   out.clip = view.viewProj * vec4<f32>(world, 1.0);
-  // Slide the whole field sideways in clip space so it composes beside the
-  // hero copy instead of sitting behind it. Physics stays centred on origin.
-  out.clip.x += view.ndcOffsetX * out.clip.w;
-  out.clip.y += view.tail.x * out.clip.w;
   out.uv = vec2<f32>(cx, cy);
   out.tint = mix(view.colorA, view.colorB, clamp(p.energy * 1.45, 0.0, 1.0));
   out.alpha = view.intensity * view.fade;
@@ -310,31 +308,17 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
 
 const PARTICLE_BYTES = 32; // vec3 pos + f32 seed + vec3 vel + f32 energy
 const SIM_BYTES = 64;
-const VIEW_BYTES = 144;
+const VIEW_BYTES = 128;
 const FOV = (50 * Math.PI) / 180;
 const CAM_DIST = 5.75;
 
 /**
- * On wide viewports the field is pushed right so the hero copy owns the left
- * half. Narrow viewports keep it centred behind the text.
- */
-export function ndcOffsetFor(aspect: number): number {
-  if (aspect < 1.05) return 0;
-  return Math.min(0.36, (aspect - 1.05) * 0.5);
-}
-
-/**
- * Portrait viewports are far narrower than the widest shape, so pull the camera
- * back until the field fits instead of letting it run off the sides.
+ * Portrait viewports are far narrower than the bounded shapes, so pull the
+ * camera back until they fit. The lattice is meant to bleed off the edges.
  */
 export function camDistFor(aspect: number): number {
   const needed = 1.95 / (Math.tan(FOV / 2) * Math.max(aspect, 0.3));
   return clamp(needed, CAM_DIST, 9.8);
-}
-
-/** Lift the field above the hero buttons on portrait layouts. */
-export function ndcOffsetYFor(aspect: number): number {
-  return aspect < 1.05 ? 0.2 : 0;
 }
 
 export async function createWebGPUBackend(
@@ -446,7 +430,7 @@ export async function createWebGPUBackend(
   const viewData = new Float32Array(VIEW_BYTES / 4);
 
   const state = {
-    shape: SHAPE_ID[opts.shape],
+    shape: opts.shape,
     theme: opts.theme,
     morph: 1,
     turbulence: opts.turbulence,
@@ -498,14 +482,14 @@ export async function createWebGPUBackend(
     state.burstAmount = damp(state.burstAmount, 0, 3.4, dt);
     state.fade = damp(state.fade, 1, 1.6, dt);
 
-    const isField = state.shape === 0;
+    const physics = SHAPE_PHYSICS[state.shape];
     simData[0] = dt;
     simData[1] = elapsed;
-    simData[2] = state.shape;
+    simData[2] = SHAPE_ID[state.shape];
     simData[3] = state.morph;
-    simData[4] = state.turbulence * (isField ? 1.5 : 1);
-    simData[5] = isField ? 0.22 : 3.8;   // attract
-    simData[6] = isField ? 0.85 : 2.1;   // damping
+    simData[4] = physics.turbulence * state.turbulence;
+    simData[5] = physics.attract;
+    simData[6] = physics.damping;
     simData[7] = 0;
     simData[8] = state.pointer[0];
     simData[9] = state.pointer[1];
@@ -544,8 +528,7 @@ export async function createWebGPUBackend(
     viewData.set(state.theme.colorA, 24);
     viewData[27] = state.fade;
     viewData.set(state.theme.colorB, 28);
-    viewData[31] = ndcOffsetFor(aspect);
-    viewData[32] = ndcOffsetYFor(aspect);
+    viewData[31] = 0;
     device.queue.writeBuffer(viewBuffer, 0, viewData);
 
     // --- passes -------------------------------------------------------------
@@ -590,7 +573,7 @@ export async function createWebGPUBackend(
       return count;
     },
     setShape(shape: ShapeName) {
-      state.shape = SHAPE_ID[shape];
+      state.shape = shape;
       state.morph = 1;
     },
     setTheme(theme: Theme) {
@@ -624,10 +607,6 @@ export async function createWebGPUBackend(
       const dist = camDistFor(aspect);
       const halfH = Math.tan(FOV / 2) * dist;
       const halfW = halfH * aspect;
-      // Undo the clip-space shift so the cursor pushes particles where the
-      // user actually sees them.
-      ndcX -= ndcOffsetFor(aspect);
-      ndcY -= ndcOffsetYFor(aspect);
       const eye: Vec3 = [
         Math.sin(state.yaw) * Math.cos(state.pitch) * dist,
         Math.sin(state.pitch) * dist,

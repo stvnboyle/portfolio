@@ -151,6 +151,85 @@ export const education = {
     "“Symbiosis” — a web platform connecting professional experts with clients seeking domain expertise via real-time 1:1 messaging, with dashboards and analytics to gamify the experience.",
 };
 
+/**
+ * Axes for the radar. `level` is a self-rating out of 100 — the one genuinely
+ * subjective thing on this page. Tune these six numbers and the chart, the
+ * bars and the ordering all follow.
+ */
+export type SkillAxis = {
+  key: string;
+  label: string;
+  short: string;
+  level: number;
+  note: string;
+  items: string[];
+};
+
+export const skillAxes: SkillAxis[] = [
+  {
+    key: "frontend",
+    label: "Frontend",
+    short: "FE",
+    level: 95,
+    note: "Where I've spent the most hours, and still the part I enjoy most.",
+    items: ["TypeScript", "React", "Next.js", "Design systems", "Tailwind", "ChakraUI", "Storybook"],
+  },
+  {
+    key: "architecture",
+    label: "Architecture",
+    short: "ARCH",
+    level: 92,
+    note: "End-to-end system design — the decisions that are expensive to undo.",
+    items: [
+      "End-to-end system design",
+      "Monorepos",
+      "Rendering patterns",
+      "Type-safe client-to-server",
+      "State management",
+      "Database & API design",
+    ],
+  },
+  {
+    key: "leadership",
+    label: "Leadership",
+    short: "LEAD",
+    level: 90,
+    note: "IC and manager both. Delivery, risk, and the people doing the work.",
+    items: [
+      "Tech lead",
+      "Engineering management",
+      "Mentorship & pairing",
+      "Code review",
+      "Career development",
+      "Customer & exec facing",
+    ],
+  },
+  {
+    key: "agentic",
+    label: "Agentic",
+    short: "AGENT",
+    level: 88,
+    note: "Orchestrating agents to ship real work at pace, without losing quality.",
+    items: ["Claude Code", "Multi-agent workflows", "Agent experience (AX)", "AI-assisted delivery"],
+  },
+  {
+    key: "backend",
+    label: "Backend",
+    short: "BE",
+    level: 82,
+    note: "Services and data — typed all the way through wherever I can manage it.",
+    items: ["Node.js", "Python", "Django", "PostgreSQL / SQL", "Drizzle ORM", "REST & RPC design"],
+  },
+  {
+    key: "infra",
+    label: "Infra",
+    short: "INFRA",
+    level: 78,
+    note: "Enough to own it from day zero rather than hand it over.",
+    items: ["AWS", "Terraform", "Vercel", "CI/CD", "Supabase", "Edge caching"],
+  },
+];
+
 export const skillGroups = [
   {
     label: "Core stack",

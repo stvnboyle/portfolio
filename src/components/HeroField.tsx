@@ -11,8 +11,12 @@ export function HeroField() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const surface = surfaceRef.current;
-    if (!canvas || !surface) return;
+    if (!canvas) return;
+
+    // Track the pointer across the whole hero, not just the canvas layer —
+    // the canvas sits behind the copy, so it would otherwise miss most moves.
+    const surface = canvas.closest<HTMLElement>(".hero") ?? surfaceRef.current;
+    if (!surface) return;
 
     const engine = new FieldEngine(canvas, surface);
     setEngine(engine);
@@ -26,69 +30,81 @@ export function HeroField() {
 
   return (
     <div ref={surfaceRef} className="field">
-      <div className="grid-bg" aria-hidden />
-      <canvas
-        ref={canvasRef}
-        className="hero__canvas"
-        aria-hidden
-        // A still gradient stands in if neither WebGPU nor WebGL2 is available.
-        data-fallback="none"
-      />
+      <canvas ref={canvasRef} className="hero__canvas" aria-hidden data-fallback="none" />
       <div className="hero__veil" aria-hidden />
     </div>
   );
 }
 
-/** Shape switcher — makes the field discoverable without using the terminal. */
-export function ShapeChips() {
+/**
+ * Live telemetry from the renderer, presented as a debug overlay. Everything
+ * in it is read from the running simulation, not hardcoded.
+ */
+export function RendererHud() {
   const { engine, status } = useFieldEngine();
-  const [active, setActive] = useState<ShapeName>("triangle");
+  const [shape, setShape] = useState<ShapeName>("lattice");
 
   useEffect(() => {
-    if (status?.shape) setActive(status.shape);
+    if (status?.shape) setShape(status.shape);
   }, [status?.shape]);
 
-  if (!engine) return null;
+  const offline = !status || status.kind === "none";
 
   return (
-    <div className="chips" role="group" aria-label="Particle field shape">
-      <span className="chips__label mono">render</span>
-      {SHAPES.map((shape) => (
-        <button
-          key={shape}
-          type="button"
-          className="chip mono"
-          data-active={active === shape}
-          onClick={() => engine.setShape(shape)}
-        >
-          {shape}
-        </button>
-      ))}
+    <div className="hud mono">
+      <div className="hud__bar">
+        <span className="hud__title">renderer</span>
+        <span className="hud__state" data-live={!offline}>
+          {offline ? "offline" : "live"}
+        </span>
+      </div>
+
+      <dl className="hud__rows">
+        <Row
+          k="backend"
+          v={
+            offline
+              ? "css fallback"
+              : status.kind === "webgpu"
+                ? "webgpu · compute"
+                : "webgl2 · feedback"
+          }
+        />
+        <Row k="device" v={offline ? "—" : status.adapterLabel.toLowerCase()} />
+        <Row k="particles" v={offline ? "—" : status.count.toLocaleString("en-GB")} />
+        <Row
+          k="frame"
+          v={offline || !status.fps ? "—" : `${status.fps} fps`}
+          accent={!offline && status.fps >= 55}
+        />
+        <Row k="shape" v={shape} />
+      </dl>
+
+      <div className="hud__shapes">
+        {SHAPES.map((s) => (
+          <button
+            key={s}
+            type="button"
+            className="hud__shape"
+            data-active={shape === s}
+            onClick={() => engine?.setShape(s)}
+            disabled={offline}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      <p className="hud__hint">move the cursor through it · click to disturb</p>
     </div>
   );
 }
 
-/** Live renderer badge: which backend actually won, and how fast it's running. */
-export function GpuBadge() {
-  const { status } = useFieldEngine();
-  if (!status || status.kind === "none") return null;
-
+function Row({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
-    <span className="gpu-badge mono" title={status.adapterLabel}>
-      <i className="gpu-badge__dot" />
-      {status.kind === "webgpu" ? "WebGPU" : "WebGL2"}
-      <span className="gpu-badge__sep">/</span>
-      {formatCount(status.count)} particles
-      {status.fps > 0 && (
-        <>
-          <span className="gpu-badge__sep">/</span>
-          {status.fps} fps
-        </>
-      )}
-    </span>
+    <div className="hud__row">
+      <dt>{k}</dt>
+      <dd data-accent={accent}>{v}</dd>
+    </div>
   );
-}
-
-function formatCount(n: number): string {
-  return n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n);
 }

@@ -331,7 +331,6 @@ export function Terminal({ articles }: { articles: Article[] }) {
         help: "the obligatory system readout",
         run: (_a, ctx) => {
           const info: Array<[string, string]> = [
-            ["host", "steven-boyle.dev"],
             ["role", profile.roles.join(" / ")],
             ["location", profile.location],
             ["uptime", `${yearsSince(2016)} years shipping software`],
@@ -391,7 +390,7 @@ export function Terminal({ articles }: { articles: Article[] }) {
         args: "<section>",
         help: "scroll to a section",
         run: (args, ctx) => {
-          const sections = ["about", "experience", "skills", "writing", "contact"];
+          const sections = ["stack", "terminal", "writing", "contact"];
           const [target] = args;
           if (!target || !sections.includes(target)) {
             ctx.print("err", `usage: open <${sections.join("|")}>`);
@@ -480,24 +479,19 @@ export function Terminal({ articles }: { articles: Article[] }) {
         setBooted(true);
 
         const script: Array<[number, Line["kind"], ReactNode]> = [
-          [0, "dim", "boot: initialising portfolio…"],
-          [260, "dim", "boot: mounting content from CV"],
-          [460, "dim", "boot: syncing posts from medium.com/@stevenboyle64"],
-          [700, "ok", "ready."],
-          [820, "out", ""],
+          [0, "dim", "loading profile…"],
+          [240, "dim", "syncing medium.com/@stevenboyle64"],
+          [440, "ok", "ready"],
+          [540, "out", ""],
           [
-            860,
+            580,
             "out",
             <>
-              Hi — I&apos;m <b>{profile.fullName}</b>. {profile.roles.join(", ")}.
+              <b>{profile.fullName}</b> — {profile.roles.join(" / ")}
             </>,
           ],
-          [
-            960,
-            "dim",
-            "This terminal is real. Type `help` to explore, or drive the particle field with `render torus`.",
-          ],
-          [1020, "out", ""],
+          [660, "dim", "help for commands. render galaxy to mess with the field."],
+          [720, "out", ""],
         ];
 
         const timers = script.map(([delay, kind, content]) =>
@@ -576,7 +570,7 @@ export function Terminal({ articles }: { articles: Article[] }) {
     }
   }
 
-  const suggestions = ["whoami", "experience", "render galaxy", "theme amber", "gpu", "neofetch"];
+  const suggestions = ["whoami", "experience", "neofetch", "render galaxy", "theme matrix", "gpu"];
 
   return (
     <div
@@ -656,11 +650,8 @@ function yearsSince(year: number): number {
   return new Date().getFullYear() - year;
 }
 
-const ASCII_MARK = `        ▲
-       ╱ ╲
-      ╱   ╲
-     ╱     ╲
-    ╱       ╲
-   ╱         ╲
-  ╱           ╲
- ╱_____________╲`;
+const ASCII_MARK = `████   ████
+█      █   █
+████   ████
+   █   █   █
+████   ████`;

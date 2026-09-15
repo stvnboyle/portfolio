@@ -1,4 +1,4 @@
-import { SHAPE_ID, type ShapeName } from "./shapes";
+import { SHAPE_ID, SHAPE_PHYSICS, type ShapeName } from "./shapes";
 import type { Theme } from "./theme";
 import {
   cameraBasis,
@@ -70,22 +70,30 @@ vec3 shapeTarget(int id, float fi, float n, float t) {
   float r2 = hash11(fi * 3.13 + 11.79);
   float r3 = hash11(fi * 5.97 + 27.41);
 
-  if (id == 1) {                                   // triangle
-    vec3 a = vec3( 0.0,  1.46, 0.0);
-    vec3 b = vec3(-1.68, -1.18, 0.0);
-    vec3 c = vec3( 1.68, -1.18, 0.0);
-    float jitter = (hash11(fi * 7.31) - 0.5) * 0.085;
-    if (r3 < 0.97) {
-      float e = floor(r1 * 3.0);
-      vec3 p = mix(c, a, r2);
-      if (e < 1.0) p = mix(a, b, r2);
-      else if (e < 2.0) p = mix(b, c, r2);
-      return p + vec3(0.0, 0.0, jitter);
-    }
-    float u = r1;
-    float v = r2;
-    if (u + v > 1.0) { u = 1.0 - u; v = 1.0 - v; }
-    return a + u * (b - a) + v * (c - a) + vec3(0.0, 0.0, jitter * 0.7);
+  if (id == 0) {                                   // node lattice
+    uint cols = 150u;
+    uint rows = 100u;
+
+    // Scramble before binning so leftover particles don't band one region.
+    uint h = uint(fi);
+    h = h ^ (h >> 16u);
+    h = h * 2246822519u;
+    h = h ^ (h >> 13u);
+    h = h * 3266489917u;
+    h = h ^ (h >> 16u);
+    uint cell = h % (cols * rows);
+
+    float u = float(cell % cols) / float(cols - 1u) - 0.5;
+    float v = float(cell / cols) / float(rows - 1u) - 0.5;
+    float x = u * 13.6;
+    float y = v * 9.0;
+    float z = sin(x * 1.05 + t * 0.62) * cos(y * 0.95 - t * 0.44) * 0.52;
+    vec3 jitter = vec3(
+      hash11(fi * 2.13) - 0.5,
+      hash11(fi * 4.27) - 0.5,
+      hash11(fi * 6.41) - 0.5
+    ) * 0.017;
+    return vec3(x, y, z) + jitter;
   }
   if (id == 2) {                                   // fibonacci sphere
     float k = fi + 0.5;
@@ -98,13 +106,7 @@ vec3 shapeTarget(int id, float fi, float n, float t) {
     float v = r2 * TAU;
     return vec3((1.35 + 0.52 * cos(v)) * cos(u), 0.52 * sin(v), (1.35 + 0.52 * cos(v)) * sin(u));
   }
-  if (id == 4) {                                   // wave grid
-    float gx = (r1 - 0.5) * 5.4;
-    float gz = (r2 - 0.5) * 5.4;
-    float y = sin(gx * 1.55 + t * 0.9) * cos(gz * 1.55 - t * 0.68) * 0.46;
-    return vec3(gx, y - 0.15, gz);
-  }
-  if (id == 5) {                                   // double helix
+  if (id == 4) {                                   // double helix
     float y = (r2 - 0.5) * 3.5;
     float ang = r2 * 5.0 * TAU + t * 0.25;
     vec3 s1 = vec3(cos(ang) * 0.88, y, sin(ang) * 0.88);
@@ -112,7 +114,7 @@ vec3 shapeTarget(int id, float fi, float n, float t) {
     if (r3 < 0.16) return mix(s1, s2, r1);
     return r1 < 0.5 ? s1 : s2;
   }
-  if (id == 6) {                                   // spiral galaxy
+  if (id == 5) {                                   // spiral galaxy
     float arm = floor(r1 * 3.0);
     float rad = pow(r2, 0.55) * 2.45;
     float scatter = (hash11(fi * 9.13) - 0.5) * (0.3 + rad * 0.34);
@@ -205,8 +207,6 @@ in vec3 aVel;
 uniform mat4  uViewProj;
 uniform float uPointScale;   // pixels per world unit at the focal plane
 uniform float uPointSize;
-uniform float uNdcOffsetX;
-uniform float uNdcOffsetY;
 uniform vec3  uColorA;
 uniform vec3  uColorB;
 
@@ -216,11 +216,11 @@ out float vEnergy;
 void main() {
   float energy = clamp(length(aVel) * 0.4, 0.0, 1.0);
   vec4 clip = uViewProj * vec4(aPos, 1.0);
-  clip.x += uNdcOffsetX * clip.w;
-  clip.y += uNdcOffsetY * clip.w;
   gl_Position = clip;
   // Perspective-correct sizing: sprites shrink with distance like real geometry.
-  gl_PointSize = max(1.0, uPointSize * (0.55 + energy * 0.9) * uPointScale / max(clip.w, 0.001));
+  // uPointSize is a radius (matching the WebGPU billboard half-extent) but
+  // gl_PointSize is a diameter, hence the factor of two.
+  gl_PointSize = max(1.0, 2.0 * uPointSize * (0.55 + energy * 0.9) * uPointScale / max(clip.w, 0.001));
   vTint = mix(uColorA, uColorB, clamp(energy * 1.45, 0.0, 1.0));
   vEnergy = energy;
 }
@@ -254,19 +254,10 @@ void main() {
 const FOV = (50 * Math.PI) / 180;
 const CAM_DIST = 5.75;
 
-/** Both of these match the WebGPU backend so the two look identical. */
-function ndcOffsetFor(aspect: number): number {
-  if (aspect < 1.05) return 0;
-  return Math.min(0.36, (aspect - 1.05) * 0.5);
-}
-
+/** Matches the WebGPU backend so the two look identical. */
 function camDistFor(aspect: number): number {
   const needed = 1.95 / (Math.tan(FOV / 2) * Math.max(aspect, 0.3));
   return clamp(needed, CAM_DIST, 9.8);
-}
-
-function ndcOffsetYFor(aspect: number): number {
-  return aspect < 1.05 ? 0.2 : 0;
 }
 
 export function createWebGL2Backend(
@@ -300,7 +291,7 @@ export function createWebGL2Backend(
     "uPointer", "uPointerActive", "uBurst", "uBurstAmount", "uCount",
   ]);
   const uRender = uniformMap(gl, renderProgram, [
-    "uViewProj", "uPointScale", "uPointSize", "uNdcOffsetX", "uNdcOffsetY",
+    "uViewProj", "uPointScale", "uPointSize",
     "uColorA", "uColorB", "uIntensity", "uFade",
   ]);
 
@@ -342,6 +333,11 @@ export function createWebGL2Backend(
       return vao;
     });
     gl!.bindVertexArray(null);
+
+    // ARRAY_BUFFER is global state, not captured by the VAO. Leaving the last
+    // attribute buffer bound here makes it both a transform-feedback target and
+    // a regular binding on the next draw, which is undefined behaviour.
+    gl!.bindBuffer(gl!.ARRAY_BUFFER, null);
     src = 0;
   }
   allocate(count);
@@ -349,7 +345,7 @@ export function createWebGL2Backend(
   const transformFeedback = gl.createTransformFeedback()!;
 
   const state = {
-    shape: SHAPE_ID[opts.shape],
+    shape: opts.shape,
     theme: opts.theme,
     morph: 1,
     turbulence: opts.turbulence,
@@ -411,17 +407,17 @@ export function createWebGL2Backend(
     state.burstAmount = damp(state.burstAmount, 0, 3.4, dt);
     state.fade = damp(state.fade, 1, 1.6, dt);
 
-    const isField = state.shape === 0;
+    const physics = SHAPE_PHYSICS[state.shape];
 
     // ---- physics step via transform feedback --------------------------------
     gl!.useProgram(updateProgram);
     gl!.uniform1f(uUpdate.uDt, dt);
     gl!.uniform1f(uUpdate.uTime, elapsed);
-    gl!.uniform1i(uUpdate.uShape, state.shape);
+    gl!.uniform1i(uUpdate.uShape, SHAPE_ID[state.shape]);
     gl!.uniform1f(uUpdate.uMorph, state.morph);
-    gl!.uniform1f(uUpdate.uTurbulence, state.turbulence * (isField ? 1.5 : 1));
-    gl!.uniform1f(uUpdate.uAttract, isField ? 0.22 : 3.8);
-    gl!.uniform1f(uUpdate.uDamping, isField ? 0.85 : 2.1);
+    gl!.uniform1f(uUpdate.uTurbulence, physics.turbulence * state.turbulence);
+    gl!.uniform1f(uUpdate.uAttract, physics.attract);
+    gl!.uniform1f(uUpdate.uDamping, physics.damping);
     gl!.uniform3fv(uUpdate.uPointer, state.pointer);
     gl!.uniform1f(uUpdate.uPointerActive, state.pointerActive);
     gl!.uniform3fv(uUpdate.uBurst, state.burst);
@@ -463,8 +459,6 @@ export function createWebGL2Backend(
     gl!.uniformMatrix4fv(uRender.uViewProj, false, viewProj);
     gl!.uniform1f(uRender.uPointScale, height / (2 * Math.tan(FOV / 2)));
     gl!.uniform1f(uRender.uPointSize, opts.pointSize * (dist / CAM_DIST));
-    gl!.uniform1f(uRender.uNdcOffsetX, ndcOffsetFor(aspect));
-    gl!.uniform1f(uRender.uNdcOffsetY, ndcOffsetYFor(aspect));
     gl!.uniform3fv(uRender.uColorA, state.theme.colorA);
     gl!.uniform3fv(uRender.uColorB, state.theme.colorB);
     gl!.uniform1f(uRender.uIntensity, opts.intensity);
@@ -492,7 +486,7 @@ export function createWebGL2Backend(
       return count;
     },
     setShape(shape: ShapeName) {
-      state.shape = SHAPE_ID[shape];
+      state.shape = shape;
       state.morph = 1;
     },
     setTheme(theme: Theme) {
@@ -526,8 +520,6 @@ export function createWebGL2Backend(
       const dist = camDistFor(aspect);
       const halfH = Math.tan(FOV / 2) * dist;
       const halfW = halfH * aspect;
-      ndcX -= ndcOffsetFor(aspect);
-      ndcY -= ndcOffsetYFor(aspect);
       const b = cameraBasis(currentEye(dist), [0, 0, 0], [0, 1, 0]);
       const x = ndcX * halfW;
       const y = ndcY * halfH;
