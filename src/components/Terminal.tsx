@@ -372,13 +372,18 @@ export function Terminal({ articles }: { articles: Article[] }) {
         name: "cv",
         help: "the traditional two-pager",
         run: (_a, ctx) => {
+          ctx.print("out", "Everything on my CV is on this page — try `experience`.");
+          ctx.print("out", "");
           ctx.print(
-            "out",
-            <a className="tl-link" href="/steven-boyle-cv.pdf" download>
-              download steven-boyle-cv.pdf
-            </a>
+            "dim",
+            <>
+              For the PDF,{" "}
+              <a className="tl-link" href={`mailto:${profile.email}`}>
+                drop me an email
+              </a>
+              .
+            </>
           );
-          ctx.print("dim", "everything in it is also on this page — try `experience`");
         },
       },
       {

@@ -375,8 +375,8 @@ function Contact() {
             <a className="btn btn--ghost" href={profile.links.linkedin} target="_blank" rel="noreferrer">
               LinkedIn
             </a>
-            <a className="btn btn--ghost" href="/steven-boyle-cv.pdf" download>
-              Download CV
+            <a className="btn btn--ghost" href={profile.links.medium} target="_blank" rel="noreferrer">
+              Medium
             </a>
           </div>
         </div>
