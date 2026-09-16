@@ -2,9 +2,10 @@
  * Two passes, identical in both shading languages:
  *
  *  1. scatter  (low res) — for every pixel, march towards each emitter through
- *     the blurred glyph mask. Beer–Lambert transmittance gives a soft shadow
- *     behind each letter; integrating the emitter's falloff along the same
- *     ray, attenuated by what's been crossed so far, gives faint shafts.
+ *     the blurred glyph mask. Beer–Lambert transmittance cuts a shadow behind
+ *     each letter; integrating the emitter's falloff along the same ray,
+ *     attenuated by what's been crossed so far, gives the shafts. A slowly
+ *     rotating angular noise breaks each source into streaks.
  *  2. composite (full res) — upsample, tone-map gently, fade the edges out
  *     and dither. The letters themselves are real DOM text on top.
  */
@@ -52,6 +53,26 @@ fn hash12(p: vec2f) -> f32 {
   return fract((p3.x + p3.y) * p3.z);
 }
 
+fn noise2(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let w = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash12(i), hash12(i + vec2f(1.0, 0.0)), w.x),
+    mix(hash12(i + vec2f(0.0, 1.0)), hash12(i + vec2f(1.0, 1.0)), w.x),
+    w.y
+  );
+}
+
+// Angular streaks around an emitter. Noise is sampled on a circle rather than
+// on the angle itself, so the pattern wraps cleanly all the way round.
+fn rays(dir: vec2f, seed: f32, t: f32) -> f32 {
+  let a = t * 0.015 + seed;
+  let r = vec2f(dir.x * cos(a) - dir.y * sin(a), dir.x * sin(a) + dir.y * cos(a));
+  let n = noise2(r * 2.5 + seed * 7.1) * 0.55 + noise2(r * 14.0 - seed * 3.7) * 0.45;
+  return smoothstep(0.42, 0.78, n);
+}
+
 @fragment
 fn fsScatter(@builtin(position) fc: vec4f) -> @location(0) vec4f {
   let uv = fc.xy / u.sres;
@@ -74,15 +95,20 @@ fn fsScatter(@builtin(position) fc: vec4f) -> @location(0) vec4f {
     var shafts = 0.0;
     for (var k = 0; k < n; k++) {
       let occ = textureSampleLevel(mask, linearSampler, p, 0.0).r;
-      transmit *= exp(-occ * 70.0 * stepLen);
+      transmit *= exp(-occ * 150.0 * stepLen);
       let q = (p - L.pos) * asp;
-      shafts += transmit * r2 / (dot(q, q) * 6.0 + r2);
+      shafts += transmit * L.radius / (length(q) * 3.0 + L.radius);
       p += stepUv;
     }
 
     let d = toLight * asp;
-    let pool0 = r2 / (dot(d, d) + r2);
-    col += L.color * L.strength * (pool0 * pool0 * transmit + shafts * stepLen * u.gain);
+    let dist = length(d);
+    let streak = mix(1.0, rays(-d / max(dist, 1e-4), f32(i) * 1.37, u.time), smoothstep(0.0, L.radius * 1.5, dist));
+    let pool0 = r2 / (dist * dist + r2);
+    col += L.color * L.strength * (
+      pool0 * pool0 * transmit * (0.25 + 0.75 * streak) +
+      shafts * stepLen * u.gain * (0.04 + 0.96 * streak)
+    );
   }
 
   return vec4f(col, 1.0);
@@ -135,8 +161,27 @@ export const GLSL_SCATTER =
   /* glsl */ `
 uniform sampler2D uMask;
 
+float noise2(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 w = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash12(i), hash12(i + vec2(1.0, 0.0)), w.x),
+    mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), w.x),
+    w.y
+  );
+}
+
+float rays(vec2 dir, float seed, float t) {
+  float a = t * 0.015 + seed;
+  vec2 r = vec2(dir.x * cos(a) - dir.y * sin(a), dir.x * sin(a) + dir.y * cos(a));
+  float n = noise2(r * 2.5 + seed * 7.1) * 0.55 + noise2(r * 14.0 - seed * 3.7) * 0.45;
+  return smoothstep(0.42, 0.78, n);
+}
+
 void main() {
   vec2 sres = uHead[0].zw;
+  float time = uHead[1].x;
   int count = int(uHead[1].y);
   int n = int(uHead[1].z);
   float aspect = uHead[2].x;
@@ -163,15 +208,20 @@ void main() {
     float shafts = 0.0;
     for (int k = 0; k < n; k++) {
       float occ = textureLod(uMask, p, 0.0).r;
-      transmit *= exp(-occ * 70.0 * stepLen);
+      transmit *= exp(-occ * 150.0 * stepLen);
       vec2 q = (p - a.xy) * asp;
-      shafts += transmit * r2 / (dot(q, q) * 6.0 + r2);
+      shafts += transmit * a.z / (length(q) * 3.0 + a.z);
       p += stepUv;
     }
 
     vec2 d = toLight * asp;
-    float pool0 = r2 / (dot(d, d) + r2);
-    col += b.rgb * a.w * (pool0 * pool0 * transmit + shafts * stepLen * gain);
+    float dist = length(d);
+    float streak = mix(1.0, rays(-d / max(dist, 1e-4), float(i) * 1.37, time), smoothstep(0.0, a.z * 1.5, dist));
+    float pool0 = r2 / (dist * dist + r2);
+    col += b.rgb * a.w * (
+      pool0 * pool0 * transmit * (0.25 + 0.75 * streak) +
+      shafts * stepLen * gain * (0.04 + 0.96 * streak)
+    );
   }
 
   outColor = vec4(col, 1.0);

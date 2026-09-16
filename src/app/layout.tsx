@@ -44,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en-GB" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body>
-        <a className="skip-link" href="#about">
+        <a className="skip-link" href="#experience">
           Skip to content
         </a>
         {children}

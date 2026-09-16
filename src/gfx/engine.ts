@@ -14,8 +14,8 @@ const TIERS = [
 ];
 const MASK_SCALE = 0.25;
 const MAX_OUTPUT_PIXELS = 2_400_000;
-const EXPOSURE = 0.5;
-const SCATTER_GAIN = 0.45;
+const EXPOSURE = 0.8;
+const SCATTER_GAIN = 1.6;
 
 type Light = Pick<Emitter, "strength" | "radius"> & { linear: [number, number, number] };
 
@@ -168,7 +168,7 @@ export class LightField {
     const cx = (x0 + x1) / 2;
     const cy = (y0 + y1) / 2;
     const hw = (x1 - x0) / 2;
-    const hh = Math.max((y1 - y0) / 2, 0.08);
+    const hh = Math.max((y1 - y0) / 2, 0.06);
 
     const u = this.uniforms;
     u.fill(0);

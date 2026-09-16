@@ -1,8 +1,10 @@
 import { Hero } from "@/components/Hero";
 import { Enhancements } from "@/components/Enhancements";
+import { ExperienceVisual } from "@/components/ExperienceVisuals";
 import { getArticles, type Article } from "@/data/articles";
 import { getBuildInfo } from "@/data/build";
-import { profile, skillGroups } from "@/data/profile";
+import { EXPERIENCES } from "@/data/experiences";
+import { profile } from "@/data/profile";
 
 export default async function Page() {
   // Fetched once at build time — the published HTML already contains the posts.
@@ -16,8 +18,7 @@ export default async function Page() {
 
       <main>
         <Hero />
-        <About />
-        <Stack />
+        <Experiences />
         <Writing articles={articles} />
       </main>
 
@@ -36,9 +37,8 @@ function Nav() {
           {profile.name}
         </a>
         <nav className="nav__links" aria-label="Sections">
-          <a href="#about">About</a>
-          <a href="#stack">Stack</a>
-          <a data-drop href="#writing">Writing</a>
+          <a href="#experience">Experience</a>
+          <a href="#writing">Writing</a>
           <a href="#contact">Contact</a>
         </nav>
       </div>
@@ -46,68 +46,64 @@ function Nav() {
   );
 }
 
-function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+function Experiences() {
   return (
-    <section className="section" id={id}>
-      <div className="shell section__grid">
-        <h2 className="section__title" data-reveal>
-          {title}
+    <section className="section" id="experience">
+      <div className="shell">
+        <h2 className="care__title" data-reveal>
+          Good software is felt at every end of it.
+          <span> By the people building it, the agents working in it, and the people using it.</span>
         </h2>
-        <div className="section__body">{children}</div>
+
+        <div className="cards">
+          {EXPERIENCES.map((e, i) => (
+            <article
+              key={e.id}
+              id={e.id}
+              className="card"
+              data-reveal
+              style={{ "--tone": e.tone, "--delay": `${i * 90}ms` } as React.CSSProperties}
+            >
+              <ExperienceVisual id={e.id} />
+              <div className="card__copy">
+                <h3 className="card__title">
+                  <i aria-hidden />
+                  {e.title}
+                </h3>
+                <p>{e.body}</p>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-function About() {
-  return (
-    <Section id="about" title="About">
-      <p className="about__lead" data-reveal>
-        {profile.intro}
-      </p>
-      <p className="about__sub" data-reveal>
-        {profile.intro2}
-      </p>
-    </Section>
-  );
-}
-
-function Stack() {
-  return (
-    <Section id="stack" title="Stack">
-      <div className="groups">
-        {skillGroups.map((group) => (
-          <div key={group.label} className="group" data-reveal>
-            <p className="group__label">{group.label}</p>
-            <ul>
-              {group.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
 function Writing({ articles }: { articles: Article[] }) {
   return (
-    <Section id="writing" title="Writing">
-      <ul className="posts">
-        {articles.map((article) => (
-          <li key={article.url} data-reveal>
-            <a className="post" href={article.url} target="_blank" rel="noreferrer">
-              <span className="post__title">{article.title}</span>
-              <span className="post__date">{article.date}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
-      <a className="more" href={profile.links.medium} target="_blank" rel="noreferrer">
-        All posts <Arrow />
-      </a>
-    </Section>
+    <section className="section" id="writing">
+      <div className="shell section__grid">
+        <h2 className="section__title" data-reveal>
+          Writing
+        </h2>
+        <div>
+          <ul className="posts">
+            {articles.map((article) => (
+              <li key={article.url} data-reveal>
+                <a className="post" href={article.url} target="_blank" rel="noreferrer">
+                  <span className="post__title">{article.title}</span>
+                  <span className="post__date">{article.date}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          <a className="more" href={profile.links.medium} target="_blank" rel="noreferrer">
+            All posts <Arrow />
+          </a>
+        </div>
+      </div>
+    </section>
   );
 }
 

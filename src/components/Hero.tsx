@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { LightField } from "@/gfx/engine";
 import { profile } from "@/data/profile";
+import { EXPERIENCES } from "@/data/experiences";
 
 export function Hero() {
   const heroRef = useRef<HTMLElement>(null);
@@ -35,6 +36,13 @@ export function Hero() {
           </a>
           . Based in Newcastle.
         </p>
+        <ul className="hero__key">
+          {EXPERIENCES.map((e) => (
+            <li key={e.id} style={{ "--tone": e.tone } as React.CSSProperties}>
+              <a href={`#${e.id}`}>{e.title}</a>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );
