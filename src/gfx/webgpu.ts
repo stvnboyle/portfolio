@@ -49,8 +49,7 @@ export async function createWebGPURenderer(canvas: HTMLCanvasElement): Promise<R
     addressModeV: "clamp-to-edge",
   });
 
-  let fullMask: GPUTexture | null = null;
-  let softMask: GPUTexture | null = null;
+  let mask: GPUTexture | null = null;
   let scatter: GPUTexture | null = null;
   let scatterGroup: GPUBindGroup | null = null;
   let compositeGroup: GPUBindGroup | null = null;
@@ -58,13 +57,13 @@ export async function createWebGPURenderer(canvas: HTMLCanvasElement): Promise<R
   // "auto" layouts only contain the bindings each entry point actually reads,
   // so the two passes get separate groups.
   function rebind() {
-    if (!fullMask || !softMask || !scatter) return;
+    if (!mask || !scatter) return;
     scatterGroup = device.createBindGroup({
       layout: scatterPipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: uniformBuffer } },
         { binding: 1, resource: sampler },
-        { binding: 2, resource: softMask.createView() },
+        { binding: 2, resource: mask.createView() },
       ],
     });
     compositeGroup = device.createBindGroup({
@@ -72,8 +71,7 @@ export async function createWebGPURenderer(canvas: HTMLCanvasElement): Promise<R
       entries: [
         { binding: 0, resource: { buffer: uniformBuffer } },
         { binding: 1, resource: sampler },
-        { binding: 3, resource: fullMask.createView() },
-        { binding: 4, resource: scatter.createView() },
+        { binding: 3, resource: scatter.createView() },
       ],
     });
   }
@@ -89,12 +87,8 @@ export async function createWebGPURenderer(canvas: HTMLCanvasElement): Promise<R
     return texture;
   }
 
-  const info = adapter.info;
-  const label = [info?.vendor, info?.architecture].filter(Boolean).join(" ") || "gpu";
-
   return {
     kind: "webgpu",
-    device: label,
 
     resize(width, height, scatterWidth, scatterHeight) {
       canvas.width = width;
@@ -108,11 +102,9 @@ export async function createWebGPURenderer(canvas: HTMLCanvasElement): Promise<R
       rebind();
     },
 
-    setMasks(full, soft) {
-      fullMask?.destroy();
-      softMask?.destroy();
-      fullMask = upload(full);
-      softMask = upload(soft);
+    setMask(source) {
+      mask?.destroy();
+      mask = upload(source);
       rebind();
     },
 
@@ -139,8 +131,7 @@ export async function createWebGPURenderer(canvas: HTMLCanvasElement): Promise<R
     },
 
     destroy() {
-      fullMask?.destroy();
-      softMask?.destroy();
+      mask?.destroy();
       scatter?.destroy();
       uniformBuffer.destroy();
       context.unconfigure();

@@ -56,12 +56,10 @@ export function createWebGL2Renderer(canvas: HTMLCanvasElement): Renderer {
   const scatterU = {
     head: loc(scatterProgram, "uHead"),
     lights: loc(scatterProgram, "uLights"),
-    soft: loc(scatterProgram, "uSoftMask"),
+    mask: loc(scatterProgram, "uMask"),
   };
   const compositeU = {
     head: loc(compositeProgram, "uHead"),
-    lights: loc(compositeProgram, "uLights"),
-    full: loc(compositeProgram, "uFullMask"),
     scatter: loc(compositeProgram, "uScatter"),
     scale: loc(compositeProgram, "uScatterScale"),
   };
@@ -80,12 +78,11 @@ export function createWebGL2Renderer(canvas: HTMLCanvasElement): Renderer {
     return t;
   }
 
-  const fullMask = makeTexture();
-  const softMask = makeTexture();
+  const mask = makeTexture();
   const scatter = makeTexture();
   const framebuffer = gl.createFramebuffer();
   let scatterSize: [number, number] = [0, 0];
-  let hasMasks = false;
+  let hasMask = false;
 
   function bindTexture(unit: number, texture: WebGLTexture, location: WebGLUniformLocation | null) {
     gl!.activeTexture(gl!.TEXTURE0 + unit);
@@ -93,19 +90,8 @@ export function createWebGL2Renderer(canvas: HTMLCanvasElement): Renderer {
     gl!.uniform1i(location, unit);
   }
 
-  const debug = gl.getExtension("WEBGL_debug_renderer_info");
-  const device = debug
-    ? String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL))
-        .replace(/^ANGLE \(|\)$/g, "")
-        .split(",")
-        .slice(0, 2)
-        .join(" ")
-        .trim()
-    : "gpu";
-
   return {
     kind: "webgl2",
-    device,
 
     resize(width, height, scatterWidth, scatterHeight) {
       canvas.width = width;
@@ -122,19 +108,14 @@ export function createWebGL2Renderer(canvas: HTMLCanvasElement): Renderer {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     },
 
-    setMasks(full, soft) {
-      for (const [texture, source] of [
-        [fullMask, full],
-        [softMask, soft],
-      ] as const) {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-      }
-      hasMasks = true;
+    setMask(source) {
+      gl.bindTexture(gl.TEXTURE_2D, mask);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      hasMask = true;
     },
 
     render(uniforms) {
-      if (!hasMasks || !scatterSize[0]) return;
+      if (!hasMask || !scatterSize[0]) return;
       const head = uniforms.subarray(0, HEADER_FLOATS);
       const lights = uniforms.subarray(HEADER_FLOATS);
       gl.bindVertexArray(vao);
@@ -144,23 +125,20 @@ export function createWebGL2Renderer(canvas: HTMLCanvasElement): Renderer {
       gl.useProgram(scatterProgram);
       gl.uniform4fv(scatterU.head, head);
       gl.uniform4fv(scatterU.lights, lights);
-      bindTexture(0, softMask, scatterU.soft);
+      bindTexture(0, mask, scatterU.mask);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.useProgram(compositeProgram);
       gl.uniform4fv(compositeU.head, head);
-      gl.uniform4fv(compositeU.lights, lights);
       gl.uniform1f(compositeU.scale, scatterScale);
-      bindTexture(0, fullMask, compositeU.full);
-      bindTexture(1, scatter, compositeU.scatter);
+      bindTexture(0, scatter, compositeU.scatter);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
 
     destroy() {
-      gl.deleteTexture(fullMask);
-      gl.deleteTexture(softMask);
+      gl.deleteTexture(mask);
       gl.deleteTexture(scatter);
       gl.deleteFramebuffer(framebuffer);
       gl.deleteProgram(scatterProgram);

@@ -1,42 +1,31 @@
-export type Masks = {
-  /** Glyphs at output resolution — used for the letterforms and their rim light. */
-  full: HTMLCanvasElement;
-  /** Downsampled and blurred — what the rays march through. */
-  soft: HTMLCanvasElement;
-  /** CPU copy of the soft mask, for occlusion tests at each emitter. */
-  softPixels: Uint8ClampedArray;
-  softWidth: number;
-  softHeight: number;
+export type Mask = {
+  /** Blurred glyph coverage the rays march through. */
+  canvas: HTMLCanvasElement;
   /** Bounds of the drawn glyphs, in 0..1 canvas UV. */
   bounds: { x0: number; y0: number; x1: number; y1: number };
 };
 
 /**
- * Rasterises `text` into occlusion masks aligned with `host`.
+ * Rasterises `text` into a low-resolution occlusion mask aligned with `host`.
  *
  * Each character is drawn at the position the DOM laid it out, read back via
- * a Range, so the mask matches the real heading exactly — kerning, tracking,
- * line breaks and all — without re-implementing text layout on a canvas.
+ * a Range, so the shadows match the real heading — kerning, tracking, line
+ * breaks and all — without re-implementing text layout on a canvas.
  */
-export function buildMasks(
-  host: HTMLElement,
-  text: HTMLElement,
-  width: number,
-  height: number,
-  softScale: number
-): Masks {
+export function buildMask(host: HTMLElement, text: HTMLElement, scale: number): Mask {
   const hostRect = host.getBoundingClientRect();
-  const sx = width / hostRect.width;
-  const sy = height / hostRect.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(hostRect.width * scale));
+  canvas.height = Math.max(1, Math.round(hostRect.height * scale));
 
-  const full = document.createElement("canvas");
-  full.width = width;
-  full.height = height;
-  const ctx = full.getContext("2d")!;
+  const ctx = canvas.getContext("2d")!;
   ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, width, height);
-  ctx.scale(sx, sy);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(canvas.width / hostRect.width, canvas.height / hostRect.height);
   ctx.fillStyle = "#fff";
+  // Softens penumbrae and widens thin strokes so coarse ray steps can't skip
+  // them. Browsers without canvas filters just get slightly harder shadows.
+  ctx.filter = "blur(3px)";
 
   const style = getComputedStyle(text);
   ctx.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
@@ -75,42 +64,15 @@ export function buildMasks(
     }
   }
 
-  const softWidth = Math.max(1, Math.round(hostRect.width * softScale));
-  const softHeight = Math.max(1, Math.round(hostRect.height * softScale));
-  const soft = document.createElement("canvas");
-  soft.width = softWidth;
-  soft.height = softHeight;
-  const sctx = soft.getContext("2d", { willReadFrequently: true })!;
-  sctx.imageSmoothingQuality = "high";
-  // Softens penumbrae and widens thin strokes so coarse ray steps can't skip
-  // them. Browsers without canvas filters just get slightly harder shadows.
-  sctx.filter = "blur(1px)";
-  sctx.drawImage(full, 0, 0, softWidth, softHeight);
-  sctx.filter = "none";
-
-  const hasGlyphs = Number.isFinite(x0);
-
   return {
-    full,
-    soft,
-    softPixels: sctx.getImageData(0, 0, softWidth, softHeight).data,
-    softWidth,
-    softHeight,
-    bounds: hasGlyphs
+    canvas,
+    bounds: Number.isFinite(x0)
       ? {
           x0: x0 / hostRect.width,
           y0: y0 / hostRect.height,
           x1: x1 / hostRect.width,
           y1: y1 / hostRect.height,
         }
-      : { x0: 0.2, y0: 0.35, x1: 0.8, y1: 0.65 },
+      : { x0: 0.1, y0: 0.4, x1: 0.6, y1: 0.55 },
   };
-}
-
-/** Occlusion (0..1) of the soft mask at a UV coordinate. */
-export function sampleMask(masks: Masks, u: number, v: number): number {
-  const x = Math.floor(u * masks.softWidth);
-  const y = Math.floor(v * masks.softHeight);
-  if (x < 0 || y < 0 || x >= masks.softWidth || y >= masks.softHeight) return 0;
-  return masks.softPixels[(y * masks.softWidth + x) * 4] / 255;
 }
