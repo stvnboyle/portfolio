@@ -1,209 +1,213 @@
-import { createWebGPURenderer } from "./webgpu";
-import { createWebGL2Renderer } from "./webgl";
+import { clock, compute, draw, frameLoop, init, pingPongStorage, surface } from "vgpu";
+import type { FrameLoopHandle, Gpu } from "vgpu";
+import { perspectiveCamera } from "vgpu/scene";
+import simulateShader from "./wave-simulate.wgsl";
+import renderShader from "./wave-render.wgsl";
 import {
+  CAMERA,
+  DAMPING,
   DEPTH,
+  FOCUS,
   GRID_DESKTOP,
   GRID_MOBILE,
+  MAX_DROPS,
   NEAR_Z,
   SIM_HZ,
-  VIEW_FLOATS,
+  WAVE_C2,
   screenToCell,
-  viewProjection,
   type Drop,
-  type Grid,
 } from "./field";
-import type { Renderer, RendererKind } from "./types";
 
-const MAX_OUTPUT_PIXELS = 3_000_000;
-const HEIGHT_SCALE = 1;
-/** How often an idle surface gets a small disturbance of its own. */
-const IDLE_DROP_MS = 2600;
+const CLEAR: [number, number, number, number] = [0.039, 0.039, 0.043, 1];
+/** How long the surface waits, untouched, before disturbing itself. */
+const IDLE_DROP_MS = 4200;
+const NO_DROP: [number, number, number, number] = [0, 0, 1, 0];
 
-export type FieldStatus = {
-  backend: RendererKind;
-  nodes: number;
-  fps: number;
+export type FieldStatus = { nodes: number; fps: number };
+
+type Callbacks = {
+  onLive(): void;
+  onStatus(status: FieldStatus): void;
+  onUnsupported(reason: string): void;
 };
 
-export class WaveField {
-  private renderer: Renderer | null = null;
-  private readonly view = new Float32Array(VIEW_FLOATS);
-  private readonly cleanups: Array<() => void> = [];
-  private disposed = false;
+/**
+ * Starts the wave field on `canvas`, taking pointer input from `hero`.
+ * Returns a teardown function, safe to call before startup has finished.
+ */
+export function startWaveField(canvas: HTMLCanvasElement, hero: HTMLElement, callbacks: Callbacks): () => void {
+  let disposed = false;
+  let gpu: Gpu | undefined;
+  let loop: FrameLoopHandle | undefined;
+  const cleanups: Array<() => void> = [];
 
-  private css = { w: 1, h: 1 };
-  private raf = 0;
-  private last = 0;
-  private time = 0;
-  private accumulator = 0;
-  private onScreen = true;
-  private readonly calm: boolean;
-  private readonly grid: Grid;
-
-  private drops: Drop[] = [];
-  private lastPointerDrop = 0;
-  private lastActivity = 0;
-  private lastIdleDrop = 0;
-
-  private frames = 0;
-  private windowStart = 0;
-  private readonly statusListeners = new Set<(status: FieldStatus) => void>();
-
-  constructor(
-    private readonly canvas: HTMLCanvasElement,
-    private readonly hero: HTMLElement
-  ) {
-    this.calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const small = window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768;
-    this.grid = small ? GRID_MOBILE : GRID_DESKTOP;
-  }
-
-  async start(): Promise<void> {
+  void (async () => {
     try {
-      this.renderer = await createWebGPURenderer(this.canvas, this.grid);
-    } catch {
-      try {
-        this.renderer = createWebGL2Renderer(this.canvas, this.grid);
-      } catch {
-        // No GPU path: the hero stays as plain type on the page background.
-        return;
-      }
-    }
-    if (this.disposed) {
-      this.renderer.destroy();
-      this.renderer = null;
+      // The render pass reads heights from storage in the vertex stage.
+      gpu = await init({ powerPreference: "high-performance", requiredLimits: { maxStorageBuffersInVertexStage: 1 } });
+    } catch (error) {
+      callbacks.onUnsupported((error as Error).message);
       return;
     }
+    if (disposed) return gpu.dispose();
 
-    this.layout();
-    this.attach();
-    this.raf = requestAnimationFrame(this.frame);
-  }
+    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const small = window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768;
+    const grid = small ? GRID_MOBILE : GRID_DESKTOP;
+    const nodes = grid.gx * grid.gz;
 
-  onStatus(fn: (status: FieldStatus) => void): () => void {
-    this.statusListeners.add(fn);
-    return () => this.statusListeners.delete(fn);
-  }
+    const canvasSurface = surface(gpu, canvas, { dpr: [1, 2] });
+    const camera = perspectiveCamera({
+      fov: CAMERA.fovDegrees,
+      aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight),
+      near: 0.1,
+      far: 60,
+      position: CAMERA.position,
+      target: CAMERA.target,
+    });
 
-  destroy() {
-    this.disposed = true;
-    cancelAnimationFrame(this.raf);
-    for (const fn of this.cleanups) fn();
-    this.cleanups.length = 0;
-    this.statusListeners.clear();
-    this.renderer?.destroy();
-    this.renderer = null;
-  }
+    const heights = pingPongStorage(gpu, nodes * 4);
+    const step = compute(gpu, simulateShader, {
+      label: "wave-step",
+      set: {
+        sim: { gx: grid.gx, gz: grid.gz, dropCount: 0, damping: DAMPING, c2: WAVE_C2, drops: [NO_DROP, NO_DROP, NO_DROP, NO_DROP] },
+      },
+    });
 
-  /* --- sizing & input ------------------------------------------------------ */
+    const lens = () => {
+      const p11 = 1 / Math.tan((CAMERA.fovDegrees * Math.PI) / 360);
+      const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+      return [p11 / aspect, p11, grid.pointSize, 0] as [number, number, number, number];
+    };
+    let lensValues = lens();
 
-  private layout() {
-    if (!this.renderer) return;
-    const rect = this.hero.getBoundingClientRect();
-    this.css = { w: Math.max(1, rect.width), h: Math.max(1, rect.height) };
-    let dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const pixels = this.css.w * this.css.h * dpr * dpr;
-    if (pixels > MAX_OUTPUT_PIXELS) dpr *= Math.sqrt(MAX_OUTPUT_PIXELS / pixels);
-    this.renderer.resize(Math.round(this.css.w * dpr), Math.round(this.css.h * dpr));
-  }
+    const field = draw(gpu, {
+      shader: renderShader,
+      label: "wave-field",
+      instances: nodes,
+      vertices: 6,
+      blend: "premultiplied",
+      set: {
+        view: {
+          viewProjection: camera.viewProjection,
+          lens: lensValues,
+          grid: [grid.gx, grid.gz, grid.width, DEPTH],
+          shape: [NEAR_Z, 1, FOCUS, 0],
+        },
+        heights: heights.read,
+      },
+    });
 
-  private cellAt(e: PointerEvent) {
-    const rect = this.hero.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-    return screenToCell(ndcX, ndcY, this.css.w / this.css.h, this.grid);
-  }
+    const onResize = () => {
+      camera.set({ aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight) });
+      lensValues = lens();
+      field.set({ view: { viewProjection: camera.viewProjection, lens: lensValues } });
+    };
+    canvasSurface.onResize(onResize);
 
-  private attach() {
-    const resizeObserver = new ResizeObserver(() => this.layout());
-    resizeObserver.observe(this.hero);
+    /* --- input ------------------------------------------------------------ */
 
-    // Moving leaves a gentle wake; pressing drops something heavier.
+    const drops: Drop[] = [];
+    let lastWake = 0;
+    let lastActivity = performance.now();
+    let lastIdle = 0;
+
+    const cellAt = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+      return screenToCell(ndcX, ndcY, rect.width / rect.height, grid);
+    };
+    // Moving leaves a faint wake; pressing drops something heavier.
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
       const now = performance.now();
-      this.lastActivity = now;
-      if (now - this.lastPointerDrop < 45) return;
-      const cell = this.cellAt(e);
+      lastActivity = now;
+      if (now - lastWake < 60) return;
+      const cell = cellAt(e);
       if (!cell) return;
-      this.lastPointerDrop = now;
-      this.drops.push({ ...cell, radius: 2.2, amp: 0.045 });
+      lastWake = now;
+      drops.push({ ...cell, radius: 2.6, amp: 0.028 });
     };
     const onDown = (e: PointerEvent) => {
-      this.lastActivity = performance.now();
-      const cell = this.cellAt(e);
-      if (cell) this.drops.push({ ...cell, radius: 3.2, amp: 0.55 });
+      lastActivity = performance.now();
+      const cell = cellAt(e);
+      if (cell) drops.push({ ...cell, radius: 3.6, amp: 0.3 });
     };
-    this.hero.addEventListener("pointermove", onMove, { passive: true });
-    this.hero.addEventListener("pointerdown", onDown, { passive: true });
+    hero.addEventListener("pointermove", onMove, { passive: true });
+    hero.addEventListener("pointerdown", onDown, { passive: true });
 
-    const visibility = new IntersectionObserver(([entry]) => (this.onScreen = entry.isIntersecting));
-    visibility.observe(this.hero);
+    let onScreen = true;
+    const visibility = new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting));
+    visibility.observe(hero);
 
-    this.cleanups.push(() => {
-      resizeObserver.disconnect();
+    cleanups.push(() => {
       visibility.disconnect();
-      this.hero.removeEventListener("pointermove", onMove);
-      this.hero.removeEventListener("pointerdown", onDown);
+      hero.removeEventListener("pointermove", onMove);
+      hero.removeEventListener("pointerdown", onDown);
     });
-  }
 
-  /* --- frame --------------------------------------------------------------- */
+    /* --- loop ------------------------------------------------------------- */
 
-  private frame = (now: number) => {
-    this.raf = requestAnimationFrame(this.frame);
-    const dt = this.last ? Math.min((now - this.last) / 1000, 0.1) : 1 / 60;
-    this.last = now;
-    if (!this.onScreen || !this.renderer) return;
+    const time = clock(gpu);
+    const speed = calm ? 0.25 : 1;
+    let simTime = 0;
+    let accumulator = 0;
+    let frames = 0;
+    let windowStart = performance.now();
+    let live = false;
 
-    this.time += dt * (this.calm ? 0.25 : 1);
+    loop = frameLoop(gpu, (frame) => {
+      if (!onScreen) return;
+      const dt = Math.min(time.deltaTime, 0.1) * speed;
+      simTime += dt;
+      const now = performance.now();
 
-    // Fixed-rate simulation, independent of the display's refresh rate.
-    this.accumulator += dt * (this.calm ? 0.25 : 1);
-    let steps = 0;
-    while (this.accumulator >= 1 / SIM_HZ && steps < 2) {
-      this.accumulator -= 1 / SIM_HZ;
-      steps++;
-    }
-    if (steps === 2) this.accumulator = 0;
+      if (!calm && now - lastActivity > IDLE_DROP_MS && now - lastIdle > IDLE_DROP_MS) {
+        lastIdle = now;
+        drops.push({
+          x: grid.gx * (0.3 + Math.random() * 0.4),
+          z: grid.gz * (0.06 + Math.random() * 0.26),
+          radius: 3.4,
+          amp: 0.2,
+        });
+      }
 
-    if (!this.calm && now - this.lastActivity > IDLE_DROP_MS && now - this.lastIdleDrop > IDLE_DROP_MS) {
-      this.lastIdleDrop = now;
-      this.drops.push({
-        x: this.grid.gx * (0.3 + Math.random() * 0.4),
-        z: this.grid.gz * (0.08 + Math.random() * 0.3),
-        radius: 3,
-        amp: 0.35,
-      });
-    }
+      // Fixed-rate simulation, independent of the display's refresh rate.
+      accumulator += dt;
+      for (let n = 0; accumulator >= 1 / SIM_HZ && n < 2; n++) {
+        accumulator -= 1 / SIM_HZ;
+        const batch = drops.splice(0, MAX_DROPS);
+        const packed = Array.from({ length: MAX_DROPS }, (_, i) =>
+          batch[i] ? [batch[i].x, batch[i].z, batch[i].radius, batch[i].amp] : NO_DROP
+        );
+        step.set({ sim: { dropCount: batch.length, drops: packed }, current: heights.read, previous: heights.write });
+        step.dispatch(Math.ceil(grid.gx / 16), Math.ceil(grid.gz / 16));
+        heights.swap();
+      }
+      if (accumulator > 1 / SIM_HZ) accumulator = 0;
 
-    const aspect = this.css.w / this.css.h;
-    const { matrix, p00, p11 } = viewProjection(aspect);
-    const v = this.view;
-    v.set(matrix, 0);
-    v.set([p00, p11, this.grid.pointSize, this.time], 16);
-    v.set([this.grid.gx, this.grid.gz, this.grid.width, DEPTH], 20);
-    v.set([NEAR_Z, HEIGHT_SCALE, aspect, 0], 24);
+      lensValues[3] = simTime;
+      field.set({ view: { lens: lensValues }, heights: heights.read });
+      frame.pass({ target: canvasSurface, clear: CLEAR }, (pass) => pass.draw(field));
 
-    const drops = steps > 0 ? this.drops.splice(0, 4) : [];
-    this.renderer.render({ view: v, steps, drops });
+      if (!live) {
+        live = true;
+        callbacks.onLive();
+      }
+      frames++;
+      if (now - windowStart >= 1000) {
+        callbacks.onStatus({ nodes, fps: Math.round((frames * 1000) / (now - windowStart)) });
+        frames = 0;
+        windowStart = now;
+      }
+    });
+  })().catch((error: Error) => callbacks.onUnsupported(error.message));
 
-    if (!this.hero.dataset.field) this.hero.dataset.field = "live";
-    this.measure(now);
+  return () => {
+    disposed = true;
+    loop?.stop();
+    for (const fn of cleanups) fn();
+    gpu?.dispose();
   };
-
-  private measure(now: number) {
-    this.frames++;
-    if (!this.windowStart) this.windowStart = now;
-    const span = now - this.windowStart;
-    if (span < 1000 || !this.renderer) return;
-    const status: FieldStatus = {
-      backend: this.renderer.kind,
-      nodes: this.grid.gx * this.grid.gz,
-      fps: Math.round((this.frames * 1000) / span),
-    };
-    this.frames = 0;
-    this.windowStart = now;
-    for (const fn of this.statusListeners) fn(status);
-  }
 }

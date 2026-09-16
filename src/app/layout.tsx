@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { profile } from "@/data/profile";
 import "./globals.css";
@@ -42,9 +41,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GB" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="en-GB" className={GeistMono.variable}>
       <body>
-        <a className="skip-link" href="#experience">
+        <a className="skip-link" href="#principles">
           Skip to content
         </a>
         {children}

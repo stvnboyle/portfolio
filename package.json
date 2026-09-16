@@ -6,13 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "npx serve out",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:shaders": "vgpu check src/gfx/wave-simulate.wgsl --require-validation && vgpu check src/gfx/wave-render.wgsl --require-validation"
   },
   "dependencies": {
     "geist": "^1.7.2",
     "next": "^16.3.5",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "vgpu": "^0.5.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.0",

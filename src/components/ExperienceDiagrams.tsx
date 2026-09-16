@@ -16,7 +16,7 @@ function DevLoop() {
   const checks = ["typecheck", "lint", "test", "build"];
   return (
     <div className="diagram dx" aria-hidden>
-      <div className="dx__diff mono">
+      <div className="dx__diff">
         <p className="dx__file">src/db/schema.ts</p>
         <p>
           <span className="dx__ln">12</span> export const users = table(&#123;
@@ -34,7 +34,7 @@ function DevLoop() {
 
       <div className="dx__flow">
         <i className="dx__wire" />
-        <ul className="dx__checks mono">
+        <ul className="dx__checks">
           {checks.map((check, i) => (
             <li key={check} style={{ "--i": i } as React.CSSProperties}>
               <i className="dx__status" />
@@ -49,14 +49,14 @@ function DevLoop() {
           <i />
           <i />
           <i />
-          <span className="mono">preview</span>
+          <span>preview</span>
         </div>
         <div className="dx__page">
           <b />
           <b />
           <b />
         </div>
-        <span className="dx__ready mono">ready</span>
+        <span className="dx__ready">ready</span>
       </div>
     </div>
   );
@@ -85,7 +85,7 @@ function AgentLoop() {
         {stages.map((stage, i) => (
           <span
             key={stage}
-            className="ax__node mono"
+            className="ax__node"
             style={
               {
                 "--i": i,
@@ -97,7 +97,7 @@ function AgentLoop() {
             {stage}
           </span>
         ))}
-        <div className="ax__contract mono">
+        <div className="ax__contract">
           <p>
             <span>tool</span> search_docs
           </p>
@@ -110,7 +110,7 @@ function AgentLoop() {
         </div>
       </div>
 
-      <ul className="ax__guards mono">
+      <ul className="ax__guards">
         {guards.map((g, i) => (
           <li key={g} style={{ "--i": i } as React.CSSProperties}>
             {g}
@@ -139,7 +139,7 @@ function Interface() {
           <i />
           <i />
           <i />
-          <span className="mono">/checkout</span>
+          <span>/checkout</span>
         </div>
         <div className="ux__screen">
           <div className="ux__skeleton">
@@ -159,12 +159,12 @@ function Interface() {
 
       <div className="ux__metrics">
         <div className="ux__frames">
-          <span className="mono">16.7ms</span>
+          <span>16.7ms</span>
           {bars.map((h, i) => (
             <i key={i} style={{ "--h": `${h}%`, "--i": i } as React.CSSProperties} />
           ))}
         </div>
-        <ul className="ux__vitals mono">
+        <ul className="ux__vitals">
           {vitals.map(([k, v]) => (
             <li key={k}>
               <span>{k}</span>
