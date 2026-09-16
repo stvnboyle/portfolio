@@ -1,13 +1,9 @@
-import { GLSL_COMPOSITE, GLSL_SCATTER, GLSL_VERTEX } from "./shaders";
-import { HEADER_FLOATS, type Renderer } from "./types";
+import type { Grid } from "./field";
+import { GLSL_FRAGMENT, GLSL_VERTEX } from "./shaders";
+import { WaveSim } from "./sim";
+import type { Renderer } from "./types";
 
-/**
- * Without a float colour buffer the scatter pass renders to RGBA8, so values
- * are divided down on the way in and scaled back up when composited.
- */
-const LDR_SCATTER_SCALE = 8;
-
-export function createWebGL2Renderer(canvas: HTMLCanvasElement): Renderer {
+export function createWebGL2Renderer(canvas: HTMLCanvasElement, grid: Grid): Renderer {
   const gl = canvas.getContext("webgl2", {
     alpha: false,
     antialias: false,
@@ -15,11 +11,6 @@ export function createWebGL2Renderer(canvas: HTMLCanvasElement): Renderer {
     powerPreference: "high-performance",
   });
   if (!gl) throw new Error("webgl2 unavailable");
-
-  const floatTarget = Boolean(
-    gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float")
-  );
-  const scatterScale = floatTarget ? 1 : LDR_SCATTER_SCALE;
 
   function compile(type: number, source: string) {
     const shader = gl!.createShader(type)!;
@@ -31,118 +22,68 @@ export function createWebGL2Renderer(canvas: HTMLCanvasElement): Renderer {
     return shader;
   }
 
-  function program(fragment: string) {
-    const p = gl!.createProgram()!;
-    gl!.attachShader(p, compile(gl!.VERTEX_SHADER, GLSL_VERTEX));
-    gl!.attachShader(p, compile(gl!.FRAGMENT_SHADER, fragment));
-    gl!.linkProgram(p);
-    if (!gl!.getProgramParameter(p, gl!.LINK_STATUS)) {
-      throw new Error(`GLSL link: ${gl!.getProgramInfoLog(p)}`);
-    }
-    return p;
+  const program = gl.createProgram()!;
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, GLSL_VERTEX));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, GLSL_FRAGMENT));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    throw new Error(`GLSL link: ${gl.getProgramInfoLog(program)}`);
   }
 
-  // Scatter writes pre-divided values when targeting RGBA8.
-  const scatterSource = floatTarget
-    ? GLSL_SCATTER
-    : GLSL_SCATTER.replace(
-        "outColor = vec4(col, 1.0);",
-        `outColor = vec4(col / ${LDR_SCATTER_SCALE.toFixed(1)}, 1.0);`
-      );
-  const scatterProgram = program(scatterSource);
-  const compositeProgram = program(GLSL_COMPOSITE);
+  const uViewProj = gl.getUniformLocation(program, "uViewProj");
+  const uView = gl.getUniformLocation(program, "uView");
+  const uHeights = gl.getUniformLocation(program, "uHeights");
 
-  const loc = (p: WebGLProgram, name: string) => gl.getUniformLocation(p, name);
-  const scatterU = {
-    head: loc(scatterProgram, "uHead"),
-    lights: loc(scatterProgram, "uLights"),
-    mask: loc(scatterProgram, "uMask"),
-  };
-  const compositeU = {
-    head: loc(compositeProgram, "uHead"),
-    scatter: loc(compositeProgram, "uScatter"),
-    scale: loc(compositeProgram, "uScatterScale"),
-  };
-
-  // The fullscreen triangle is generated from gl_VertexID; a bound VAO is
-  // still required for drawArrays.
+  // Corners and grid positions come from gl_VertexID / gl_InstanceID; a bound
+  // VAO is still required for drawing.
   const vao = gl.createVertexArray();
 
-  function makeTexture() {
-    const t = gl!.createTexture()!;
-    gl!.bindTexture(gl!.TEXTURE_2D, t);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.LINEAR);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.LINEAR);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
-    return t;
-  }
+  const sim = new WaveSim(grid);
+  const heights = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, heights);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, grid.gx, grid.gz, 0, gl.RED, gl.FLOAT, sim.current);
 
-  const mask = makeTexture();
-  const scatter = makeTexture();
-  const framebuffer = gl.createFramebuffer();
-  let scatterSize: [number, number] = [0, 0];
-  let hasMask = false;
-
-  function bindTexture(unit: number, texture: WebGLTexture, location: WebGLUniformLocation | null) {
-    gl!.activeTexture(gl!.TEXTURE0 + unit);
-    gl!.bindTexture(gl!.TEXTURE_2D, texture);
-    gl!.uniform1i(location, unit);
-  }
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
   return {
     kind: "webgl2",
+    grid,
 
-    resize(width, height, scatterWidth, scatterHeight) {
+    resize(width, height) {
       canvas.width = width;
       canvas.height = height;
-      scatterSize = [scatterWidth, scatterHeight];
-      gl.bindTexture(gl.TEXTURE_2D, scatter);
-      if (floatTarget) {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, scatterWidth, scatterHeight, 0, gl.RGBA, gl.HALF_FLOAT, null);
-      } else {
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, scatterWidth, scatterHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      }
-      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, scatter, 0);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     },
 
-    setMask(source) {
-      gl.bindTexture(gl.TEXTURE_2D, mask);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-      hasMask = true;
-    },
+    render({ view, steps, drops }) {
+      for (let s = 0; s < steps; s++) sim.step(s === 0 ? drops : []);
 
-    render(uniforms) {
-      if (!hasMask || !scatterSize[0]) return;
-      const head = uniforms.subarray(0, HEADER_FLOATS);
-      const lights = uniforms.subarray(HEADER_FLOATS);
-      gl.bindVertexArray(vao);
-
-      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
-      gl.viewport(0, 0, scatterSize[0], scatterSize[1]);
-      gl.useProgram(scatterProgram);
-      gl.uniform4fv(scatterU.head, head);
-      gl.uniform4fv(scatterU.lights, lights);
-      bindTexture(0, mask, scatterU.mask);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.useProgram(compositeProgram);
-      gl.uniform4fv(compositeU.head, head);
-      gl.uniform1f(compositeU.scale, scatterScale);
-      bindTexture(0, scatter, compositeU.scatter);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.clearColor(0.039, 0.039, 0.043, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      gl.useProgram(program);
+      gl.bindVertexArray(vao);
+      gl.uniformMatrix4fv(uViewProj, false, view.subarray(0, 16));
+      gl.uniform4fv(uView, view.subarray(16, 28));
+
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, heights);
+      if (steps > 0) {
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, grid.gx, grid.gz, gl.RED, gl.FLOAT, sim.current);
+      }
+      gl.uniform1i(uHeights, 0);
+
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, grid.gx * grid.gz);
     },
 
     destroy() {
-      gl.deleteTexture(mask);
-      gl.deleteTexture(scatter);
-      gl.deleteFramebuffer(framebuffer);
-      gl.deleteProgram(scatterProgram);
-      gl.deleteProgram(compositeProgram);
+      gl.deleteTexture(heights);
+      gl.deleteProgram(program);
       gl.deleteVertexArray(vao);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     },

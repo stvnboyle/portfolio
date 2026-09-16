@@ -1,6 +1,6 @@
 import { Hero } from "@/components/Hero";
 import { Enhancements } from "@/components/Enhancements";
-import { ExperienceVisual } from "@/components/ExperienceVisuals";
+import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { getArticles, type Article } from "@/data/articles";
 import { getBuildInfo } from "@/data/build";
 import { EXPERIENCES } from "@/data/experiences";
@@ -50,27 +50,37 @@ function Experiences() {
   return (
     <section className="section" id="experience">
       <div className="shell">
+        <p className="eyebrow mono" data-reveal>
+          Principles
+        </p>
         <h2 className="care__title" data-reveal>
           Good software is felt at every end of it.
           <span> By the people building it, the agents working in it, and the people using it.</span>
         </h2>
 
-        <div className="cards">
+        <div className="panels">
           {EXPERIENCES.map((e, i) => (
             <article
               key={e.id}
               id={e.id}
-              className="card"
+              className="panel"
               data-reveal
-              style={{ "--tone": e.tone, "--delay": `${i * 90}ms` } as React.CSSProperties}
+              style={{ "--tone": e.tone } as React.CSSProperties}
             >
-              <ExperienceVisual id={e.id} />
-              <div className="card__copy">
-                <h3 className="card__title">
-                  <i aria-hidden />
-                  {e.title}
-                </h3>
-                <p>{e.body}</p>
+              <div className="panel__copy">
+                <p className="panel__index mono">
+                  {String(i + 1).padStart(2, "0")} <span>/</span> {e.label}
+                </p>
+                <h3 className="panel__title">{e.title}</h3>
+                <p className="panel__body">{e.body}</p>
+                <ul className="panel__principles mono">
+                  {e.principles.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="panel__stage">
+                <ExperienceDiagram id={e.id} />
               </div>
             </article>
           ))}
@@ -84,7 +94,7 @@ function Writing({ articles }: { articles: Article[] }) {
   return (
     <section className="section" id="writing">
       <div className="shell section__grid">
-        <h2 className="section__title" data-reveal>
+        <h2 className="section__title mono" data-reveal>
           Writing
         </h2>
         <div>

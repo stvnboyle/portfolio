@@ -1,24 +1,26 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { LightField } from "@/gfx/engine";
+import { useEffect, useRef, useState } from "react";
+import { WaveField, type FieldStatus } from "@/gfx/engine";
 import { profile } from "@/data/profile";
-import { EXPERIENCES } from "@/data/experiences";
 
 export function Hero() {
   const heroRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const nameRef = useRef<HTMLHeadingElement>(null);
+  const [status, setStatus] = useState<FieldStatus | null>(null);
 
   useEffect(() => {
     const hero = heroRef.current;
     const canvas = canvasRef.current;
-    const name = nameRef.current;
-    if (!hero || !canvas || !name) return;
+    if (!hero || !canvas) return;
 
-    const field = new LightField(canvas, hero, name);
+    const field = new WaveField(canvas, hero);
+    const off = field.onStatus(setStatus);
     void field.start();
-    return () => field.destroy();
+    return () => {
+      off();
+      field.destroy();
+    };
   }, []);
 
   return (
@@ -26,9 +28,8 @@ export function Hero() {
       <canvas ref={canvasRef} className="hero__canvas" aria-hidden />
 
       <div className="shell hero__inner">
-        <h1 className="hero__name" ref={nameRef}>
-          {profile.name}
-        </h1>
+        <p className="hero__eyebrow mono">{profile.roles.join(" · ")}</p>
+        <h1 className="hero__name">{profile.name}</h1>
         <p className="hero__tagline">
           Tech lead &amp; engineering manager at hedgehog lab, and founder of{" "}
           <a className="link" href={profile.links.gitgood} target="_blank" rel="noreferrer">
@@ -36,13 +37,15 @@ export function Hero() {
           </a>
           . Based in Newcastle.
         </p>
-        <ul className="hero__key">
-          {EXPERIENCES.map((e) => (
-            <li key={e.id} style={{ "--tone": e.tone } as React.CSSProperties}>
-              <a href={`#${e.id}`}>{e.title}</a>
-            </li>
-          ))}
-        </ul>
+      </div>
+
+      <div className="shell hero__spec mono" aria-hidden>
+        <span>∂²h/∂t² = c²∇²h</span>
+        <span data-live={status ? true : undefined}>
+          {status
+            ? `${status.backend === "webgpu" ? "webgpu compute" : "webgl2 · cpu sim"} · ${status.nodes.toLocaleString("en-GB")} nodes · ${status.fps} fps`
+            : "move to disturb · click to drop"}
+        </span>
       </div>
     </section>
   );

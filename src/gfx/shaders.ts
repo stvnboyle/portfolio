@@ -1,259 +1,203 @@
 /*
- * Two passes, identical in both shading languages:
+ * Wave field.
  *
- *  1. scatter  (low res) — for every pixel, march towards each emitter through
- *     the blurred glyph mask. Beer–Lambert transmittance cuts a shadow behind
- *     each letter; integrating the emitter's falloff along the same ray,
- *     attenuated by what's been crossed so far, gives the shafts. A slowly
- *     rotating angular noise breaks each source into streaks.
- *  2. composite (full res) — upsample, tone-map gently, fade the edges out
- *     and dither. The letters themselves are real DOM text on top.
+ *  simulate (compute, WebGPU only) — one explicit step of the 2D wave
+ *    equation, ∂²h/∂t² = c²∇²h, on the grid with light damping. Two height
+ *    buffers ping-pong: the older one is overwritten with the next state.
+ *    The WebGL2 path runs the same step on the CPU (see sim.ts).
+ *  render — every grid node is an instanced camera-facing disc, lifted by
+ *    the simulated height plus a slow analytic swell so the surface is never
+ *    still. Brightness follows the crests; distance fades it to nothing.
  */
 
-export const WGSL = /* wgsl */ `
-struct Light {
-  pos: vec2f,
-  radius: f32,
-  strength: f32,
-  color: vec3f,
-  _pad: f32,
-}
-
-struct Uniforms {
-  res: vec2f,
-  sres: vec2f,
-  time: f32,
-  count: f32,
-  samples: f32,
-  exposure: f32,
-  aspect: f32,
-  gain: f32,
+export const WGSL_SIMULATE = /* wgsl */ `
+struct Sim {
+  gx: u32,
+  gz: u32,
+  dropCount: u32,
+  damping: f32,
+  c2: f32,
   _pad0: f32,
   _pad1: f32,
-  lights: array<Light, 6>,
+  _pad2: f32,
+  // x, z, radius, amplitude
+  drops: array<vec4f, 4>,
 }
 
-// #0a0a0b, the page background.
-const PAGE_BG = vec3f(0.039, 0.039, 0.043);
+@group(0) @binding(0) var<uniform> sim: Sim;
+@group(0) @binding(1) var<storage, read> current: array<f32>;
+@group(0) @binding(2) var<storage, read_write> previous: array<f32>;
 
-@group(0) @binding(0) var<uniform> u: Uniforms;
-@group(0) @binding(1) var linearSampler: sampler;
-@group(0) @binding(2) var mask: texture_2d<f32>;
-@group(0) @binding(3) var scatterTex: texture_2d<f32>;
+@compute @workgroup_size(16, 16)
+fn step(@builtin(global_invocation_id) id: vec3u) {
+  if (id.x >= sim.gx || id.y >= sim.gz) { return; }
 
-@vertex
-fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {
-  let p = vec2f(f32((i << 1u) & 2u), f32(i & 2u));
-  return vec4f(p * 2.0 - 1.0, 0.0, 1.0);
-}
+  let x = id.x;
+  let z = id.y;
+  let i = z * sim.gx + x;
+  // Clamped neighbours make the edges reflect.
+  let l = z * sim.gx + max(x, 1u) - 1u;
+  let r = z * sim.gx + min(x + 1u, sim.gx - 1u);
+  let d = (max(z, 1u) - 1u) * sim.gx + x;
+  let u = min(z + 1u, sim.gz - 1u) * sim.gx + x;
 
-fn hash12(p: vec2f) -> f32 {
-  var p3 = fract(vec3f(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
+  let lap = current[l] + current[r] + current[d] + current[u] - 4.0 * current[i];
+  var next = (2.0 * current[i] - previous[i] + sim.c2 * lap) * sim.damping;
 
-fn noise2(p: vec2f) -> f32 {
-  let i = floor(p);
-  let f = fract(p);
-  let w = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(hash12(i), hash12(i + vec2f(1.0, 0.0)), w.x),
-    mix(hash12(i + vec2f(0.0, 1.0)), hash12(i + vec2f(1.0, 1.0)), w.x),
-    w.y
-  );
-}
-
-// Angular streaks around an emitter. Noise is sampled on a circle rather than
-// on the angle itself, so the pattern wraps cleanly all the way round.
-fn rays(dir: vec2f, seed: f32, t: f32) -> f32 {
-  let a = t * 0.015 + seed;
-  let r = vec2f(dir.x * cos(a) - dir.y * sin(a), dir.x * sin(a) + dir.y * cos(a));
-  let n = noise2(r * 2.5 + seed * 7.1) * 0.55 + noise2(r * 14.0 - seed * 3.7) * 0.45;
-  return smoothstep(0.42, 0.78, n);
-}
-
-@fragment
-fn fsScatter(@builtin(position) fc: vec4f) -> @location(0) vec4f {
-  let uv = fc.xy / u.sres;
-  let asp = vec2f(u.aspect, 1.0);
-  let n = i32(u.samples);
-  let invN = 1.0 / u.samples;
-  // A fixed per-pixel start offset hides step banding without shimmering.
-  let jitter = hash12(fc.xy);
-  var col = vec3f(0.0);
-
-  for (var i = 0; i < i32(u.count); i++) {
-    let L = u.lights[i];
-    let toLight = L.pos - uv;
-    let stepUv = toLight * invN;
-    let stepLen = length(stepUv * asp);
-    let r2 = L.radius * L.radius;
-
-    var p = uv + stepUv * jitter;
-    var transmit = 1.0;
-    var shafts = 0.0;
-    for (var k = 0; k < n; k++) {
-      let occ = textureSampleLevel(mask, linearSampler, p, 0.0).r;
-      transmit *= exp(-occ * 150.0 * stepLen);
-      let q = (p - L.pos) * asp;
-      shafts += transmit * L.radius / (length(q) * 3.0 + L.radius);
-      p += stepUv;
-    }
-
-    let d = toLight * asp;
-    let dist = length(d);
-    let streak = mix(1.0, rays(-d / max(dist, 1e-4), f32(i) * 1.37, u.time), smoothstep(0.0, L.radius * 1.5, dist));
-    let pool0 = r2 / (dist * dist + r2);
-    col += L.color * L.strength * (
-      pool0 * pool0 * transmit * (0.25 + 0.75 * streak) +
-      shafts * stepLen * u.gain * (0.04 + 0.96 * streak)
-    );
+  for (var k = 0u; k < sim.dropCount; k++) {
+    let drop = sim.drops[k];
+    let dx = f32(x) - drop.x;
+    let dz = f32(z) - drop.y;
+    next += drop.w * exp(-(dx * dx + dz * dz) / (drop.z * drop.z));
   }
 
-  return vec4f(col, 1.0);
-}
-
-@fragment
-fn fsComposite(@builtin(position) fc: vec4f) -> @location(0) vec4f {
-  let uv = fc.xy / u.res;
-  let hdr = textureSampleLevel(scatterTex, linearSampler, uv, 0.0).rgb;
-
-  // Soft shoulder: keeps overlapping pools pastel instead of blowing to white.
-  var col = 1.0 - exp(-hdr * u.exposure);
-  let v = uv - vec2f(0.5, 0.45);
-  col *= 1.0 - smoothstep(0.2, 0.95, length(v * vec2f(1.0, 1.3)));
-  col *= 1.0 - smoothstep(0.55, 1.0, uv.y);
-  col = pow(col, vec3f(1.0 / 2.2));
-  // Lift onto the page background so the hero's edges meet it seamlessly.
-  col = PAGE_BG + (1.0 - PAGE_BG) * col;
-  col += (hash12(fc.xy) - 0.5) / 255.0;
-  return vec4f(col, 1.0);
+  previous[i] = next;
 }
 `;
 
-const GLSL_COMMON = /* glsl */ `#version 300 es
-precision highp float;
+export const WGSL_RENDER = /* wgsl */ `
+struct View {
+  viewProj: mat4x4f,
+  // p00, p11, point size, time
+  a: vec4f,
+  // grid x, grid z, width, depth
+  b: vec4f,
+  // near z, height scale, aspect, -
+  c: vec4f,
+}
 
-// uHead: [res.xy, sres.xy] [time, count, samples, exposure] [aspect, gain, -, -]
-uniform vec4 uHead[3];
-// uLights[2i]: pos.xy, radius, strength   uLights[2i+1]: rgb, -
-uniform vec4 uLights[12];
+@group(0) @binding(0) var<uniform> view: View;
+@group(0) @binding(1) var<storage, read> heights: array<f32>;
 
-out vec4 outColor;
+struct Varyings {
+  @builtin(position) position: vec4f,
+  @location(0) corner: vec2f,
+  @location(1) crest: f32,
+  @location(2) fade: f32,
+}
 
-float hash12(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
+fn swell(x: f32, z: f32, t: f32) -> f32 {
+  return sin(x * 0.42 + t * 0.55) * 0.16
+    + sin(z * 0.63 - t * 0.4 + x * 0.18) * 0.12
+    + sin((x - z) * 1.25 + t * 0.8) * 0.035;
+}
+
+@vertex
+fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> Varyings {
+  var corners = array<vec2f, 6>(
+    vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0),
+    vec2f(-1.0, -1.0), vec2f(1.0, 1.0), vec2f(-1.0, 1.0)
+  );
+
+  let gx = u32(view.b.x);
+  let fx = f32(ii % gx) / (view.b.x - 1.0);
+  let fz = f32(ii / gx) / (view.b.y - 1.0);
+  let x = (fx - 0.5) * view.b.z;
+  let z = view.c.x - fz * view.b.w;
+
+  let simulated = heights[ii] * view.c.y;
+  let h = simulated + swell(x, z, view.a.w);
+
+  var clip = view.viewProj * vec4f(x, h, z, 1.0);
+  let corner = corners[vi];
+  // Offsetting before the perspective divide keeps the discs world-sized.
+  clip.x += corner.x * view.a.z * view.a.x;
+  clip.y += corner.y * view.a.z * view.a.y;
+
+  var out: Varyings;
+  out.position = clip;
+  out.corner = corner;
+  out.crest = clamp(simulated * 2.4 + h * 0.9, -1.0, 1.0);
+  // Fade in off the near edge, out towards the horizon and the sides.
+  out.fade = smoothstep(0.0, 0.06, fz) * (1.0 - smoothstep(0.35, 0.95, fz))
+    * (1.0 - smoothstep(0.32, 0.5, abs(fx - 0.5)));
+  return out;
+}
+
+@fragment
+fn fs(in: Varyings) -> @location(0) vec4f {
+  let d = length(in.corner);
+  if (d > 1.0) { discard; }
+  let disc = smoothstep(1.0, 0.35, d);
+
+  let lift = max(in.crest, 0.0);
+  let base = vec3f(0.55, 0.57, 0.62);
+  let accent = vec3f(0.55, 0.72, 1.0);
+  let color = mix(base, accent, lift) * (0.28 + 0.9 * lift);
+  let alpha = disc * in.fade * (0.45 + 0.55 * lift);
+  return vec4f(color * alpha, alpha);
 }
 `;
 
 export const GLSL_VERTEX = /* glsl */ `#version 300 es
+precision highp float;
+precision highp sampler2D;
+
+// uView[0]: p00, p11, point size, time
+// uView[1]: grid x, grid z, width, depth
+// uView[2]: near z, height scale, aspect, -
+uniform mat4 uViewProj;
+uniform vec4 uView[3];
+uniform sampler2D uHeights;
+
+out vec2 vCorner;
+out float vCrest;
+out float vFade;
+
+float swell(float x, float z, float t) {
+  return sin(x * 0.42 + t * 0.55) * 0.16
+    + sin(z * 0.63 - t * 0.4 + x * 0.18) * 0.12
+    + sin((x - z) * 1.25 + t * 0.8) * 0.035;
+}
+
+const vec2 CORNERS[6] = vec2[6](
+  vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0),
+  vec2(-1.0, -1.0), vec2(1.0, 1.0), vec2(-1.0, 1.0)
+);
+
 void main() {
-  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
-  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+  int gx = int(uView[1].x);
+  int ix = gl_InstanceID % gx;
+  int iz = gl_InstanceID / gx;
+  float fx = float(ix) / (uView[1].x - 1.0);
+  float fz = float(iz) / (uView[1].y - 1.0);
+  float x = (fx - 0.5) * uView[1].z;
+  float z = uView[2].x - fz * uView[1].w;
+
+  float simulated = texelFetch(uHeights, ivec2(ix, iz), 0).r * uView[2].y;
+  float h = simulated + swell(x, z, uView[0].w);
+
+  vec4 clip = uViewProj * vec4(x, h, z, 1.0);
+  vec2 corner = CORNERS[gl_VertexID];
+  clip.x += corner.x * uView[0].z * uView[0].x;
+  clip.y += corner.y * uView[0].z * uView[0].y;
+
+  gl_Position = clip;
+  vCorner = corner;
+  vCrest = clamp(simulated * 2.4 + h * 0.9, -1.0, 1.0);
+  vFade = smoothstep(0.0, 0.06, fz) * (1.0 - smoothstep(0.35, 0.95, fz))
+    * (1.0 - smoothstep(0.32, 0.5, abs(fx - 0.5)));
 }
 `;
 
-export const GLSL_SCATTER =
-  GLSL_COMMON +
-  /* glsl */ `
-uniform sampler2D uMask;
+export const GLSL_FRAGMENT = /* glsl */ `#version 300 es
+precision highp float;
 
-float noise2(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  vec2 w = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(hash12(i), hash12(i + vec2(1.0, 0.0)), w.x),
-    mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), w.x),
-    w.y
-  );
-}
-
-float rays(vec2 dir, float seed, float t) {
-  float a = t * 0.015 + seed;
-  vec2 r = vec2(dir.x * cos(a) - dir.y * sin(a), dir.x * sin(a) + dir.y * cos(a));
-  float n = noise2(r * 2.5 + seed * 7.1) * 0.55 + noise2(r * 14.0 - seed * 3.7) * 0.45;
-  return smoothstep(0.42, 0.78, n);
-}
+in vec2 vCorner;
+in float vCrest;
+in float vFade;
+out vec4 outColor;
 
 void main() {
-  vec2 sres = uHead[0].zw;
-  float time = uHead[1].x;
-  int count = int(uHead[1].y);
-  int n = int(uHead[1].z);
-  float aspect = uHead[2].x;
-  float gain = uHead[2].y;
+  float d = length(vCorner);
+  if (d > 1.0) discard;
+  float disc = smoothstep(1.0, 0.35, d);
 
-  // Flip to a top-left origin so UVs match the DOM and the mask canvas.
-  vec2 fc = vec2(gl_FragCoord.x, sres.y - gl_FragCoord.y);
-  vec2 uv = fc / sres;
-  vec2 asp = vec2(aspect, 1.0);
-  float invN = 1.0 / float(n);
-  float jitter = hash12(fc);
-  vec3 col = vec3(0.0);
-
-  for (int i = 0; i < count; i++) {
-    vec4 a = uLights[i * 2];
-    vec4 b = uLights[i * 2 + 1];
-    vec2 toLight = a.xy - uv;
-    vec2 stepUv = toLight * invN;
-    float stepLen = length(stepUv * asp);
-    float r2 = a.z * a.z;
-
-    vec2 p = uv + stepUv * jitter;
-    float transmit = 1.0;
-    float shafts = 0.0;
-    for (int k = 0; k < n; k++) {
-      float occ = textureLod(uMask, p, 0.0).r;
-      transmit *= exp(-occ * 150.0 * stepLen);
-      vec2 q = (p - a.xy) * asp;
-      shafts += transmit * a.z / (length(q) * 3.0 + a.z);
-      p += stepUv;
-    }
-
-    vec2 d = toLight * asp;
-    float dist = length(d);
-    float streak = mix(1.0, rays(-d / max(dist, 1e-4), float(i) * 1.37, time), smoothstep(0.0, a.z * 1.5, dist));
-    float pool0 = r2 / (dist * dist + r2);
-    col += b.rgb * a.w * (
-      pool0 * pool0 * transmit * (0.25 + 0.75 * streak) +
-      shafts * stepLen * gain * (0.04 + 0.96 * streak)
-    );
-  }
-
-  outColor = vec4(col, 1.0);
-}
-`;
-
-export const GLSL_COMPOSITE =
-  GLSL_COMMON +
-  /* glsl */ `
-// #0a0a0b, the page background.
-const vec3 PAGE_BG = vec3(0.039, 0.039, 0.043);
-
-uniform sampler2D uScatter;
-uniform float uScatterScale;
-
-void main() {
-  vec2 res = uHead[0].xy;
-  float exposure = uHead[1].w;
-
-  vec2 fc = vec2(gl_FragCoord.x, res.y - gl_FragCoord.y);
-  vec2 uv = fc / res;
-  // The scatter framebuffer keeps GL's bottom-left origin.
-  vec3 hdr = textureLod(uScatter, vec2(uv.x, 1.0 - uv.y), 0.0).rgb * uScatterScale;
-
-  vec3 col = 1.0 - exp(-hdr * exposure);
-  vec2 v = uv - vec2(0.5, 0.45);
-  col *= 1.0 - smoothstep(0.2, 0.95, length(v * vec2(1.0, 1.3)));
-  col *= 1.0 - smoothstep(0.55, 1.0, uv.y);
-  col = pow(col, vec3(1.0 / 2.2));
-  // Lift onto the page background so the hero's edges meet it seamlessly.
-  col = PAGE_BG + (1.0 - PAGE_BG) * col;
-  col += (hash12(fc) - 0.5) / 255.0;
-  outColor = vec4(col, 1.0);
+  float lift = max(vCrest, 0.0);
+  vec3 base = vec3(0.55, 0.57, 0.62);
+  vec3 accent = vec3(0.55, 0.72, 1.0);
+  vec3 color = mix(base, accent, lift) * (0.28 + 0.9 * lift);
+  float alpha = disc * vFade * (0.45 + 0.55 * lift);
+  outColor = vec4(color * alpha, alpha);
 }
 `;

@@ -1,89 +1,88 @@
 import { createWebGPURenderer } from "./webgpu";
 import { createWebGL2Renderer } from "./webgl";
-import { buildMask, type Mask } from "./mask";
-import { EMITTERS, PROBE, srgbToLinear, type Emitter } from "./emitters";
-import { HEADER_FLOATS, LIGHT_FLOATS, UNIFORM_FLOATS, type Renderer } from "./types";
+import {
+  DEPTH,
+  GRID_DESKTOP,
+  GRID_MOBILE,
+  NEAR_Z,
+  SIM_HZ,
+  VIEW_FLOATS,
+  screenToCell,
+  viewProjection,
+  type Drop,
+  type Grid,
+} from "./field";
+import type { Renderer, RendererKind } from "./types";
 
-const TAU = Math.PI * 2;
+const MAX_OUTPUT_PIXELS = 3_000_000;
+const HEIGHT_SCALE = 1;
+/** How often an idle surface gets a small disturbance of its own. */
+const IDLE_DROP_MS = 2600;
 
-/** Quality steps, walked down one at a time if the frame rate can't hold. */
-const TIERS = [
-  { samples: 32, scatterScale: 0.25 },
-  { samples: 24, scatterScale: 0.2 },
-  { samples: 16, scatterScale: 0.16 },
-];
-const MASK_SCALE = 0.25;
-const MAX_OUTPUT_PIXELS = 2_400_000;
-const EXPOSURE = 0.8;
-const SCATTER_GAIN = 1.6;
+export type FieldStatus = {
+  backend: RendererKind;
+  nodes: number;
+  fps: number;
+};
 
-type Light = Pick<Emitter, "strength" | "radius"> & { linear: [number, number, number] };
-
-export class LightField {
+export class WaveField {
   private renderer: Renderer | null = null;
-  private mask: Mask | null = null;
-  private readonly uniforms = new Float32Array(UNIFORM_FLOATS);
+  private readonly view = new Float32Array(VIEW_FLOATS);
   private readonly cleanups: Array<() => void> = [];
   private disposed = false;
 
   private css = { w: 1, h: 1 };
-  private output = { w: 1, h: 1 };
-  private scatterSize: [number, number] = [1, 1];
-  private tier = 0;
-
   private raf = 0;
   private last = 0;
-  private time = 20;
+  private time = 0;
+  private accumulator = 0;
   private onScreen = true;
-  private live = false;
   private readonly calm: boolean;
+  private readonly grid: Grid;
 
-  private pointer: { u: number; v: number } | null = null;
-  private probe = { u: 0.5, v: 0.5, presence: 0 };
-
-  private readonly lights: Light[] = EMITTERS.map((e) => ({ ...e, linear: srgbToLinear(e.srgb) }));
-  private readonly probeLight: Light = { ...PROBE, linear: srgbToLinear(PROBE.srgb) };
+  private drops: Drop[] = [];
+  private lastPointerDrop = 0;
+  private lastActivity = 0;
+  private lastIdleDrop = 0;
 
   private frames = 0;
   private windowStart = 0;
-  private refreshHz = 0;
-  private warmup = 2;
+  private readonly statusListeners = new Set<(status: FieldStatus) => void>();
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
-    private readonly hero: HTMLElement,
-    private readonly name: HTMLElement
+    private readonly hero: HTMLElement
   ) {
     this.calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const coarse = window.matchMedia("(pointer: coarse)").matches;
-    if (coarse || window.innerWidth < 768) this.tier = 1;
+    const small = window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768;
+    this.grid = small ? GRID_MOBILE : GRID_DESKTOP;
   }
 
   async start(): Promise<void> {
     try {
-      this.renderer = await createWebGPURenderer(this.canvas);
+      this.renderer = await createWebGPURenderer(this.canvas, this.grid);
     } catch {
       try {
-        this.renderer = createWebGL2Renderer(this.canvas);
+        this.renderer = createWebGL2Renderer(this.canvas, this.grid);
       } catch {
-        // No GPU path: the CSS background stands in.
+        // No GPU path: the hero stays as plain type on the page background.
         return;
       }
     }
-
     if (this.disposed) {
       this.renderer.destroy();
       this.renderer = null;
       return;
     }
 
-    // Glyph positions are only final once the webfont has loaded.
-    await document.fonts.ready;
-    if (this.disposed) return;
-
     this.layout();
     this.attach();
     this.raf = requestAnimationFrame(this.frame);
+  }
+
+  onStatus(fn: (status: FieldStatus) => void): () => void {
+    this.statusListeners.add(fn);
+    return () => this.statusListeners.delete(fn);
   }
 
   destroy() {
@@ -91,165 +90,120 @@ export class LightField {
     cancelAnimationFrame(this.raf);
     for (const fn of this.cleanups) fn();
     this.cleanups.length = 0;
+    this.statusListeners.clear();
     this.renderer?.destroy();
     this.renderer = null;
   }
 
-  /* --- sizing ------------------------------------------------------------ */
+  /* --- sizing & input ------------------------------------------------------ */
 
   private layout() {
     if (!this.renderer) return;
     const rect = this.hero.getBoundingClientRect();
     this.css = { w: Math.max(1, rect.width), h: Math.max(1, rect.height) };
-
-    // The output is smooth gradients, so it never needs full device resolution.
-    let dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
     const pixels = this.css.w * this.css.h * dpr * dpr;
     if (pixels > MAX_OUTPUT_PIXELS) dpr *= Math.sqrt(MAX_OUTPUT_PIXELS / pixels);
+    this.renderer.resize(Math.round(this.css.w * dpr), Math.round(this.css.h * dpr));
+  }
 
-    this.output = { w: Math.round(this.css.w * dpr), h: Math.round(this.css.h * dpr) };
-    const { scatterScale } = TIERS[this.tier];
-    this.scatterSize = [
-      Math.max(1, Math.round(this.css.w * scatterScale)),
-      Math.max(1, Math.round(this.css.h * scatterScale)),
-    ];
-
-    this.renderer.resize(this.output.w, this.output.h, ...this.scatterSize);
-    this.mask = buildMask(this.canvas, this.name, MASK_SCALE);
-    this.renderer.setMask(this.mask.canvas);
+  private cellAt(e: PointerEvent) {
+    const rect = this.hero.getBoundingClientRect();
+    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const ndcY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    return screenToCell(ndcX, ndcY, this.css.w / this.css.h, this.grid);
   }
 
   private attach() {
-    let pending = 0;
-    const relayout = () => {
-      cancelAnimationFrame(pending);
-      pending = requestAnimationFrame(() => this.layout());
-    };
-    const resizeObserver = new ResizeObserver(relayout);
+    const resizeObserver = new ResizeObserver(() => this.layout());
     resizeObserver.observe(this.hero);
-    document.fonts.addEventListener("loadingdone", relayout);
 
+    // Moving leaves a gentle wake; pressing drops something heavier.
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
-      const rect = this.hero.getBoundingClientRect();
-      const next = { u: (e.clientX - rect.left) / rect.width, v: (e.clientY - rect.top) / rect.height };
-      // Snap into place on entry rather than drifting in from the last exit.
-      if (!this.pointer && this.probe.presence < 0.05) Object.assign(this.probe, next);
-      this.pointer = next;
+      const now = performance.now();
+      this.lastActivity = now;
+      if (now - this.lastPointerDrop < 45) return;
+      const cell = this.cellAt(e);
+      if (!cell) return;
+      this.lastPointerDrop = now;
+      this.drops.push({ ...cell, radius: 2.2, amp: 0.045 });
     };
-    const onLeave = () => (this.pointer = null);
+    const onDown = (e: PointerEvent) => {
+      this.lastActivity = performance.now();
+      const cell = this.cellAt(e);
+      if (cell) this.drops.push({ ...cell, radius: 3.2, amp: 0.55 });
+    };
     this.hero.addEventListener("pointermove", onMove, { passive: true });
-    this.hero.addEventListener("pointerleave", onLeave, { passive: true });
+    this.hero.addEventListener("pointerdown", onDown, { passive: true });
 
     const visibility = new IntersectionObserver(([entry]) => (this.onScreen = entry.isIntersecting));
     visibility.observe(this.hero);
 
     this.cleanups.push(() => {
-      cancelAnimationFrame(pending);
       resizeObserver.disconnect();
       visibility.disconnect();
-      document.fonts.removeEventListener("loadingdone", relayout);
       this.hero.removeEventListener("pointermove", onMove);
-      this.hero.removeEventListener("pointerleave", onLeave);
+      this.hero.removeEventListener("pointerdown", onDown);
     });
   }
 
-  /* --- frame ------------------------------------------------------------- */
+  /* --- frame --------------------------------------------------------------- */
 
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
     const dt = this.last ? Math.min((now - this.last) / 1000, 0.1) : 1 / 60;
     this.last = now;
-    if (!this.onScreen || !this.renderer || !this.mask) return;
+    if (!this.onScreen || !this.renderer) return;
 
-    this.time += dt * (this.calm ? 0.2 : 1);
+    this.time += dt * (this.calm ? 0.25 : 1);
 
-    const { x0, y0, x1, y1 } = this.mask.bounds;
-    const cx = (x0 + x1) / 2;
-    const cy = (y0 + y1) / 2;
-    const hw = (x1 - x0) / 2;
-    const hh = Math.max((y1 - y0) / 2, 0.06);
-
-    const u = this.uniforms;
-    u.fill(0);
-    let count = 0;
-
-    EMITTERS.forEach((e, i) => {
-      const { ax, ay, fx, fy, px, py } = e.path;
-      const lu = cx + hw * ax * Math.sin(this.time * fx * TAU + px);
-      const lv = cy + hh * ay * Math.sin(this.time * fy * TAU + py);
-      this.writeLight(count++, this.lights[i], lu, lv, 1);
-    });
-
-    // The probe eases after the pointer and fades with its presence.
-    if (this.pointer) {
-      const k = Math.min(1, dt * 4);
-      this.probe.u += (this.pointer.u - this.probe.u) * k;
-      this.probe.v += (this.pointer.v - this.probe.v) * k;
+    // Fixed-rate simulation, independent of the display's refresh rate.
+    this.accumulator += dt * (this.calm ? 0.25 : 1);
+    let steps = 0;
+    while (this.accumulator >= 1 / SIM_HZ && steps < 2) {
+      this.accumulator -= 1 / SIM_HZ;
+      steps++;
     }
-    this.probe.presence += ((this.pointer ? 1 : 0) - this.probe.presence) * Math.min(1, dt * 2);
-    if (this.probe.presence > 0.002) {
-      this.writeLight(count++, this.probeLight, this.probe.u, this.probe.v, this.probe.presence);
+    if (steps === 2) this.accumulator = 0;
+
+    if (!this.calm && now - this.lastActivity > IDLE_DROP_MS && now - this.lastIdleDrop > IDLE_DROP_MS) {
+      this.lastIdleDrop = now;
+      this.drops.push({
+        x: this.grid.gx * (0.3 + Math.random() * 0.4),
+        z: this.grid.gz * (0.08 + Math.random() * 0.3),
+        radius: 3,
+        amp: 0.35,
+      });
     }
 
-    u[0] = this.output.w;
-    u[1] = this.output.h;
-    u[2] = this.scatterSize[0];
-    u[3] = this.scatterSize[1];
-    u[4] = this.time;
-    u[5] = count;
-    u[6] = TIERS[this.tier].samples;
-    u[7] = EXPOSURE;
-    u[8] = this.css.w / this.css.h;
-    u[9] = SCATTER_GAIN;
+    const aspect = this.css.w / this.css.h;
+    const { matrix, p00, p11 } = viewProjection(aspect);
+    const v = this.view;
+    v.set(matrix, 0);
+    v.set([p00, p11, this.grid.pointSize, this.time], 16);
+    v.set([this.grid.gx, this.grid.gz, this.grid.width, DEPTH], 20);
+    v.set([NEAR_Z, HEIGHT_SCALE, aspect, 0], 24);
 
-    this.renderer.render(u);
+    const drops = steps > 0 ? this.drops.splice(0, 4) : [];
+    this.renderer.render({ view: v, steps, drops });
 
-    if (!this.live) {
-      this.live = true;
-      this.hero.dataset.field = "live";
-    }
+    if (!this.hero.dataset.field) this.hero.dataset.field = "live";
     this.measure(now);
   };
-
-  private writeLight(slot: number, light: Light, lu: number, lv: number, presence: number) {
-    const o = HEADER_FLOATS + slot * LIGHT_FLOATS;
-    const u = this.uniforms;
-    u[o] = lu;
-    u[o + 1] = lv;
-    u[o + 2] = light.radius;
-    u[o + 3] = light.strength * presence;
-    u[o + 4] = light.linear[0];
-    u[o + 5] = light.linear[1];
-    u[o + 6] = light.linear[2];
-  }
-
-  /* --- adaptive quality ---------------------------------------------------- */
 
   private measure(now: number) {
     this.frames++;
     if (!this.windowStart) this.windowStart = now;
     const span = now - this.windowStart;
-    if (span < 1000) return;
-
-    const fps = (this.frames * 1000) / span;
+    if (span < 1000 || !this.renderer) return;
+    const status: FieldStatus = {
+      backend: this.renderer.kind,
+      nodes: this.grid.gx * this.grid.gz,
+      fps: Math.round((this.frames * 1000) / span),
+    };
     this.frames = 0;
     this.windowStart = now;
-
-    if (this.warmup > 0) {
-      this.warmup--;
-      return;
-    }
-    if (!this.refreshHz) {
-      // 30Hz panels and throttled tabs are normal, so "slow" is judged
-      // against the display rather than a fixed 60.
-      this.refreshHz = [30, 60, 90, 120, 144].reduce((best, hz) =>
-        Math.abs(hz - fps) < Math.abs(best - fps) ? hz : best
-      );
-    }
-    if (fps < this.refreshHz * 0.75 && this.tier < TIERS.length - 1) {
-      this.tier++;
-      this.layout();
-    }
+    for (const fn of this.statusListeners) fn(status);
   }
 }
