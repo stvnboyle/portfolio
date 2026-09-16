@@ -8,16 +8,14 @@ export type Vec3 = [number, number, number];
 /** Node counts, plane width in world units, and disc radius. */
 export type Grid = { gx: number; gz: number; width: number; pointSize: number };
 
-export const GRID_DESKTOP: Grid = { gx: 240, gz: 160, width: 17, pointSize: 0.026 };
+export const GRID_DESKTOP: Grid = { gx: 360, gz: 240, width: 17, pointSize: 0.0135 };
 // Portrait screens only see the middle of the plane, so it's narrower and
 // denser rather than the same plane with fewer nodes.
-export const GRID_MOBILE: Grid = { gx: 120, gz: 160, width: 8, pointSize: 0.021 };
+export const GRID_MOBILE: Grid = { gx: 170, gz: 240, width: 8, pointSize: 0.0125 };
 
 /** World-space depth of the plane. It runs from `NEAR_Z` away from the camera. */
 export const DEPTH = 15;
 export const NEAR_Z = 3.4;
-/** Where the depth of field is sharpest, as a fraction of the depth. */
-export const FOCUS = 0.22;
 
 export const CAMERA = {
   position: [0, 1.5, 4.6] as Vec3,
@@ -27,10 +25,10 @@ export const CAMERA = {
 
 export const SIM_HZ = 60;
 /** Fraction of glow a node keeps per step, and how much bleeds from neighbours. */
-export const GLOW_DECAY = 0.968;
-export const GLOW_BLEED = 0.025;
+export const GLOW_DECAY = 0.965;
+export const GLOW_BLEED = 0.01;
 /** Packet footprint, in nodes. */
-export const PACKET_RADIUS = 0.62;
+export const PACKET_RADIUS = 0.75;
 /** Mirrors the array length in signal-field.wgsl. */
 export const MAX_PACKETS = 48;
 

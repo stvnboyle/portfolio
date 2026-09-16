@@ -2,13 +2,14 @@ import { MAX_PACKETS, type Grid } from "./field";
 
 type Rgb = [number, number, number];
 
-/** Soft, bright tints that read well against the dark plane. */
+/** Saturated tints that hold their hue against the dark plane. */
 export const PALETTE: Rgb[] = [
-  [0.42, 0.62, 1.0], // blue
-  [0.7, 0.52, 1.0], // violet
-  [1.0, 0.52, 0.72], // pink
-  [0.46, 0.94, 0.78], // mint
-  [1.0, 0.76, 0.46], // amber
+  [0.16, 0.48, 1.0], // electric blue
+  [0.58, 0.3, 1.0], // violet
+  [1.0, 0.24, 0.6], // magenta
+  [0.1, 0.92, 0.82], // cyan
+  [1.0, 0.62, 0.12], // amber
+  [0.3, 1.0, 0.45], // green
 ];
 
 type Packet = {
@@ -75,13 +76,13 @@ export class PacketSystem {
   /** One packet in a random axis direction. */
   emit(x: number, z: number) {
     const axis = AXES[Math.floor(Math.random() * 4)];
-    this.add(x, z, axis, this.nextColor(), 16 + Math.random() * 10, 2.4 + Math.random() * 1.6);
+    this.add(x, z, axis, this.nextColor(), 26 + Math.random() * 14, 2.4 + Math.random() * 1.6);
   }
 
   /** A burst: one packet per axis, sharing a colour, fanning out from a node. */
   burst(x: number, z: number) {
     const color = this.nextColor();
-    for (const axis of AXES) this.add(x, z, axis, color, 20 + Math.random() * 8, 2.8 + Math.random() * 1.4);
+    for (const axis of AXES) this.add(x, z, axis, color, 32 + Math.random() * 12, 2.8 + Math.random() * 1.4);
   }
 
   step(dt: number) {
@@ -118,7 +119,7 @@ export class PacketSystem {
     this.packets.forEach((p, i) => {
       // Ease in at birth and out towards the end of life.
       const strength = Math.min(1, p.age * 6) * Math.min(1, (p.life - p.age) * 1.5);
-      this.head.set([p.x, p.z, strength * 0.9, 0], i * 4);
+      this.head.set([p.x, p.z, strength * 1.2, 0], i * 4);
       this.tint.set([...p.color, 0], i * 4);
     });
   }

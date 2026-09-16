@@ -70,7 +70,7 @@ export function Timeline() {
                   )}
                 </span>
               </h3>
-              <p className="commit__summary">{event.summary}</p>
+              {event.summary && <p className="commit__summary">{event.summary}</p>}
 
               {hasMore && (
                 <details className="commit__more">

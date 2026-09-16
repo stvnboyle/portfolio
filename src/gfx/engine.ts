@@ -6,7 +6,6 @@ import renderShader from "./signal-render.wgsl";
 import {
   CAMERA,
   DEPTH,
-  FOCUS,
   GLOW_BLEED,
   GLOW_DECAY,
   GRID_DESKTOP,
@@ -21,7 +20,7 @@ import { PacketSystem } from "./packets";
 
 const CLEAR: [number, number, number, number] = [0.039, 0.039, 0.043, 1];
 /** Height a fully lit node rises by, in world units. */
-const LIFT = 0.07;
+const LIFT = 0.045;
 
 export type FieldStatus = { nodes: number; packets: number; fps: number };
 
@@ -98,12 +97,12 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       viewProjection: camera.viewProjection,
       lens: lensValues,
       grid: [grid.gx, grid.gz, grid.width, DEPTH],
-      shape: [NEAR_Z, FOCUS, LIFT, 0],
+      shape: [NEAR_Z, 0, LIFT, canvasSurface.size[1]],
     });
-    const halo = draw(gpu, {
+    const bloom = draw(gpu, {
       shader: renderShader,
-      label: "signal-halo",
-      entry: { vertex: "vs_halo", fragment: "fs_halo" },
+      label: "signal-bloom",
+      entry: { vertex: "vs_bloom", fragment: "fs_bloom" },
       instances: nodes,
       vertices: 6,
       blend: { color: { src: "one", dst: "one" }, alpha: { src: "zero", dst: "one" } },
@@ -122,7 +121,7 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
     canvasSurface.onResize(() => {
       camera.set({ aspect: aspect() });
       lensValues = lens();
-      halo.set({ view: view() });
+      bloom.set({ view: view() });
       dots.set({ view: view() });
     });
 
@@ -216,10 +215,10 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       if (accumulator > 1 / SIM_HZ) accumulator = 0;
 
       lensValues[3] = elapsed;
-      halo.set({ view: { lens: lensValues }, glow: glow.read });
+      bloom.set({ view: { lens: lensValues }, glow: glow.read });
       dots.set({ view: { lens: lensValues }, glow: glow.read });
       frame.pass({ target: canvasSurface, clear: CLEAR }, (pass) => {
-        pass.draw(halo);
+        pass.draw(bloom);
         pass.draw(dots);
       });
 

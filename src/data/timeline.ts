@@ -21,7 +21,7 @@ export type TimelineEvent = {
   title: string;
   org: string;
   period?: string;
-  summary: string;
+  summary?: string;
   points?: string[];
   engagements?: Engagement[];
   stack?: string[];
@@ -54,17 +54,26 @@ export const TIMELINE: TimelineEvent[] = [
     link: helloworld.link,
   },
   {
-    id: "hedgehog",
+    id: "hedgehog-lead",
     lane: "work",
-    ref: "joined",
-    date: "Jan 2019",
+    ref: "new role",
+    date: "2022",
     title: hedgehog.title,
     org: hedgehog.company,
-    period: hedgehog.period,
+    period: "2022 — Present",
     summary: hedgehog.summary,
     points: hedgehog.points,
     engagements: hedgehog.engagements,
     stack: hedgehog.stack,
+  },
+  {
+    id: "hedgehog-senior",
+    lane: "work",
+    ref: "joined",
+    date: "Jan 2019",
+    title: "Senior Software Engineer",
+    org: hedgehog.company,
+    period: "Jan 2019 — 2022",
   },
   {
     id: "graduated",
