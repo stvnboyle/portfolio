@@ -3,9 +3,9 @@
 import { useEffect } from "react";
 
 /**
- * Progressive enhancement for otherwise-static markup: scroll reveals, the
- * cursor-tracked card glow, and the sticky-nav state. Keeping this in one
- * island lets every section stay a server component.
+ * Progressive enhancement for otherwise-static markup: scroll reveals and the
+ * sticky-nav state. Keeping this in one island lets every section stay a
+ * server component.
  */
 export function Enhancements() {
   useEffect(() => {
@@ -32,18 +32,6 @@ export function Enhancements() {
       targets.forEach((el) => revealObserver!.observe(el));
     }
 
-    /* --- cursor glow on cards -------------------------------------------- */
-    const onPointerMove = (event: PointerEvent) => {
-      const card = (event.target as Element | null)?.closest?.(".card--glow");
-      if (!(card instanceof HTMLElement)) return;
-      const rect = card.getBoundingClientRect();
-      card.style.setProperty("--mx", `${event.clientX - rect.left}px`);
-      card.style.setProperty("--my", `${event.clientY - rect.top}px`);
-    };
-    if (!reduced) {
-      document.addEventListener("pointermove", onPointerMove, { passive: true });
-    }
-
     /* --- sticky nav ------------------------------------------------------- */
     const nav = document.querySelector<HTMLElement>(".nav");
     const onScroll = () => {
@@ -54,7 +42,6 @@ export function Enhancements() {
 
     return () => {
       revealObserver?.disconnect();
-      document.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("scroll", onScroll);
     };
   }, []);
