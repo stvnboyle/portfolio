@@ -1,29 +1,29 @@
 import { clock, compute, draw, frameLoop, init, pingPongStorage, surface } from "vgpu";
 import type { FrameLoopHandle, Gpu } from "vgpu";
 import { perspectiveCamera } from "vgpu/scene";
-import simulateShader from "./wave-simulate.wgsl";
-import renderShader from "./wave-render.wgsl";
+import fieldShader from "./signal-field.wgsl";
+import renderShader from "./signal-render.wgsl";
 import {
   CAMERA,
-  DAMPING,
   DEPTH,
   FOCUS,
+  GLOW_BLEED,
+  GLOW_DECAY,
   GRID_DESKTOP,
   GRID_MOBILE,
-  MAX_DROPS,
+  MAX_PACKETS,
   NEAR_Z,
+  PACKET_RADIUS,
   SIM_HZ,
-  WAVE_C2,
   screenToCell,
-  type Drop,
 } from "./field";
+import { PacketSystem } from "./packets";
 
 const CLEAR: [number, number, number, number] = [0.039, 0.039, 0.043, 1];
-/** How long the surface waits, untouched, before disturbing itself. */
-const IDLE_DROP_MS = 4200;
-const NO_DROP: [number, number, number, number] = [0, 0, 1, 0];
+/** Height a fully lit node rises by, in world units. */
+const LIFT = 0.07;
 
-export type FieldStatus = { nodes: number; fps: number };
+export type FieldStatus = { nodes: number; packets: number; fps: number };
 
 type Callbacks = {
   onLive(): void;
@@ -31,11 +31,16 @@ type Callbacks = {
   onUnsupported(reason: string): void;
 };
 
+/** Splits a flat Float32Array into the vec4 tuples a uniform array expects. */
+function vec4s(data: Float32Array): number[][] {
+  return Array.from({ length: data.length / 4 }, (_, i) => Array.from(data.subarray(i * 4, i * 4 + 4)));
+}
+
 /**
- * Starts the wave field on `canvas`, taking pointer input from `hero`.
+ * Starts the signal field on `canvas`, taking pointer input from `hero`.
  * Returns a teardown function, safe to call before startup has finished.
  */
-export function startWaveField(canvas: HTMLCanvasElement, hero: HTMLElement, callbacks: Callbacks): () => void {
+export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, callbacks: Callbacks): () => void {
   let disposed = false;
   let gpu: Gpu | undefined;
   let loop: FrameLoopHandle | undefined;
@@ -43,7 +48,7 @@ export function startWaveField(canvas: HTMLCanvasElement, hero: HTMLElement, cal
 
   void (async () => {
     try {
-      // The render pass reads heights from storage in the vertex stage.
+      // Both render passes read the glow field from storage in the vertex stage.
       gpu = await init({ powerPreference: "high-performance", requiredLimits: { maxStorageBuffersInVertexStage: 1 } });
     } catch (error) {
       callbacks.onUnsupported((error as Error).message);
@@ -57,60 +62,76 @@ export function startWaveField(canvas: HTMLCanvasElement, hero: HTMLElement, cal
     const nodes = grid.gx * grid.gz;
 
     const canvasSurface = surface(gpu, canvas, { dpr: [1, 2] });
+    const aspect = () => canvas.clientWidth / Math.max(1, canvas.clientHeight);
     const camera = perspectiveCamera({
       fov: CAMERA.fovDegrees,
-      aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight),
+      aspect: aspect(),
       near: 0.1,
       far: 60,
       position: CAMERA.position,
       target: CAMERA.target,
     });
-
-    const heights = pingPongStorage(gpu, nodes * 4);
-    const step = compute(gpu, simulateShader, {
-      label: "wave-step",
-      set: {
-        sim: { gx: grid.gx, gz: grid.gz, dropCount: 0, damping: DAMPING, c2: WAVE_C2, drops: [NO_DROP, NO_DROP, NO_DROP, NO_DROP] },
-      },
-    });
-
-    const lens = () => {
+    const lens = (): [number, number, number, number] => {
       const p11 = 1 / Math.tan((CAMERA.fovDegrees * Math.PI) / 360);
-      const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
-      return [p11 / aspect, p11, grid.pointSize, 0] as [number, number, number, number];
+      return [p11 / aspect(), p11, grid.pointSize, 0];
     };
     let lensValues = lens();
 
-    const field = draw(gpu, {
-      shader: renderShader,
-      label: "wave-field",
-      instances: nodes,
-      vertices: 6,
-      blend: "premultiplied",
+    const packets = new PacketSystem(grid);
+    const glow = pingPongStorage(gpu, nodes * 16);
+    const field = compute(gpu, fieldShader, {
+      label: "signal-field",
       set: {
-        view: {
-          viewProjection: camera.viewProjection,
-          lens: lensValues,
-          grid: [grid.gx, grid.gz, grid.width, DEPTH],
-          shape: [NEAR_Z, 1, FOCUS, 0],
+        field: {
+          gx: grid.gx,
+          gz: grid.gz,
+          count: MAX_PACKETS,
+          decay: GLOW_DECAY,
+          bleed: GLOW_BLEED,
+          radius: PACKET_RADIUS,
         },
-        heights: heights.read,
+        packets: { head: vec4s(packets.head), tint: vec4s(packets.tint) },
       },
     });
 
-    const onResize = () => {
-      camera.set({ aspect: canvas.clientWidth / Math.max(1, canvas.clientHeight) });
+    const view = () => ({
+      viewProjection: camera.viewProjection,
+      lens: lensValues,
+      grid: [grid.gx, grid.gz, grid.width, DEPTH],
+      shape: [NEAR_Z, FOCUS, LIFT, 0],
+    });
+    const halo = draw(gpu, {
+      shader: renderShader,
+      label: "signal-halo",
+      entry: { vertex: "vs_halo", fragment: "fs_halo" },
+      instances: nodes,
+      vertices: 6,
+      blend: { color: { src: "one", dst: "one" }, alpha: { src: "zero", dst: "one" } },
+      set: { view: view(), glow: glow.read },
+    });
+    const dots = draw(gpu, {
+      shader: renderShader,
+      label: "signal-dots",
+      entry: { vertex: "vs_dots", fragment: "fs_dots" },
+      instances: nodes,
+      vertices: 6,
+      blend: "premultiplied",
+      set: { view: view(), glow: glow.read },
+    });
+
+    canvasSurface.onResize(() => {
+      camera.set({ aspect: aspect() });
       lensValues = lens();
-      field.set({ view: { viewProjection: camera.viewProjection, lens: lensValues } });
-    };
-    canvasSurface.onResize(onResize);
+      halo.set({ view: view() });
+      dots.set({ view: view() });
+    });
 
     /* --- input ------------------------------------------------------------ */
 
-    const drops: Drop[] = [];
-    let lastWake = 0;
+    let lastTrail = 0;
     let lastActivity = performance.now();
-    let lastIdle = 0;
+    let lastIdleEmit = 0;
+    let lastIdleBurst = 0;
 
     const cellAt = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -118,21 +139,21 @@ export function startWaveField(canvas: HTMLCanvasElement, hero: HTMLElement, cal
       const ndcY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
       return screenToCell(ndcX, ndcY, rect.width / rect.height, grid);
     };
-    // Moving leaves a faint wake; pressing drops something heavier.
+    // Moving the pointer lets out a packet now and then; pressing sends a burst.
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
       const now = performance.now();
       lastActivity = now;
-      if (now - lastWake < 60) return;
+      if (now - lastTrail < 220) return;
       const cell = cellAt(e);
       if (!cell) return;
-      lastWake = now;
-      drops.push({ ...cell, radius: 2.6, amp: 0.028 });
+      lastTrail = now;
+      packets.emit(cell.x, cell.z);
     };
     const onDown = (e: PointerEvent) => {
       lastActivity = performance.now();
       const cell = cellAt(e);
-      if (cell) drops.push({ ...cell, radius: 3.6, amp: 0.3 });
+      if (cell) packets.burst(cell.x, cell.z);
     };
     hero.addEventListener("pointermove", onMove, { passive: true });
     hero.addEventListener("pointerdown", onDown, { passive: true });
@@ -147,11 +168,15 @@ export function startWaveField(canvas: HTMLCanvasElement, hero: HTMLElement, cal
       hero.removeEventListener("pointerdown", onDown);
     });
 
+    // Something to look at before anyone touches it.
+    packets.burst(grid.gx * 0.42, grid.gz * 0.16);
+    packets.burst(grid.gx * 0.64, grid.gz * 0.28);
+
     /* --- loop ------------------------------------------------------------- */
 
     const time = clock(gpu);
-    const speed = calm ? 0.25 : 1;
-    let simTime = 0;
+    const speed = calm ? 0.3 : 1;
+    let elapsed = 0;
     let accumulator = 0;
     let frames = 0;
     let windowStart = performance.now();
@@ -160,36 +185,43 @@ export function startWaveField(canvas: HTMLCanvasElement, hero: HTMLElement, cal
     loop = frameLoop(gpu, (frame) => {
       if (!onScreen) return;
       const dt = Math.min(time.deltaTime, 0.1) * speed;
-      simTime += dt;
+      elapsed += dt;
       const now = performance.now();
 
-      if (!calm && now - lastActivity > IDLE_DROP_MS && now - lastIdle > IDLE_DROP_MS) {
-        lastIdle = now;
-        drops.push({
-          x: grid.gx * (0.3 + Math.random() * 0.4),
-          z: grid.gz * (0.06 + Math.random() * 0.26),
-          radius: 3.4,
-          amp: 0.2,
-        });
+      // Left alone, the mesh keeps a light, steady flow of its own.
+      const idle = now - lastActivity > 2500;
+      if (!calm && idle && now - lastIdleEmit > 700) {
+        lastIdleEmit = now;
+        packets.emit(grid.gx * (0.2 + Math.random() * 0.6), grid.gz * (0.05 + Math.random() * 0.4));
+      }
+      if (!calm && idle && now - lastIdleBurst > 3800) {
+        lastIdleBurst = now;
+        packets.burst(grid.gx * (0.3 + Math.random() * 0.4), grid.gz * (0.08 + Math.random() * 0.3));
       }
 
       // Fixed-rate simulation, independent of the display's refresh rate.
       accumulator += dt;
       for (let n = 0; accumulator >= 1 / SIM_HZ && n < 2; n++) {
         accumulator -= 1 / SIM_HZ;
-        const batch = drops.splice(0, MAX_DROPS);
-        const packed = Array.from({ length: MAX_DROPS }, (_, i) =>
-          batch[i] ? [batch[i].x, batch[i].z, batch[i].radius, batch[i].amp] : NO_DROP
-        );
-        step.set({ sim: { dropCount: batch.length, drops: packed }, current: heights.read, previous: heights.write });
-        step.dispatch(Math.ceil(grid.gx / 16), Math.ceil(grid.gz / 16));
-        heights.swap();
+        packets.step(1 / SIM_HZ);
+        field.set({
+          field: { count: packets.count },
+          packets: { head: vec4s(packets.head), tint: vec4s(packets.tint) },
+          current: glow.read,
+          next: glow.write,
+        });
+        field.dispatch(Math.ceil(grid.gx / 16), Math.ceil(grid.gz / 16));
+        glow.swap();
       }
       if (accumulator > 1 / SIM_HZ) accumulator = 0;
 
-      lensValues[3] = simTime;
-      field.set({ view: { lens: lensValues }, heights: heights.read });
-      frame.pass({ target: canvasSurface, clear: CLEAR }, (pass) => pass.draw(field));
+      lensValues[3] = elapsed;
+      halo.set({ view: { lens: lensValues }, glow: glow.read });
+      dots.set({ view: { lens: lensValues }, glow: glow.read });
+      frame.pass({ target: canvasSurface, clear: CLEAR }, (pass) => {
+        pass.draw(halo);
+        pass.draw(dots);
+      });
 
       if (!live) {
         live = true;
@@ -197,7 +229,7 @@ export function startWaveField(canvas: HTMLCanvasElement, hero: HTMLElement, cal
       }
       frames++;
       if (now - windowStart >= 1000) {
-        callbacks.onStatus({ nodes, fps: Math.round((frames * 1000) / (now - windowStart)) });
+        callbacks.onStatus({ nodes, packets: packets.count, fps: Math.round((frames * 1000) / (now - windowStart)) });
         frames = 0;
         windowStart = now;
       }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { startWaveField, type FieldStatus } from "@/gfx/engine";
+import { startSignalField, type FieldStatus } from "@/gfx/engine";
 import { profile } from "@/data/profile";
 
 type FieldState = { kind: "starting" } | { kind: "live"; status: FieldStatus | null } | { kind: "unsupported" };
@@ -16,11 +16,11 @@ export function Hero() {
     const canvas = canvasRef.current;
     if (!hero || !canvas) return;
 
-    return startWaveField(canvas, hero, {
+    return startSignalField(canvas, hero, {
       onLive: () => setField({ kind: "live", status: null }),
       onStatus: (status) => setField({ kind: "live", status }),
       onUnsupported: (reason) => {
-        console.info(`[wave-field] falling back to a static preview: ${reason}`);
+        console.info(`[signal-field] falling back to a static preview: ${reason}`);
         setField({ kind: "unsupported" });
       },
     });
@@ -46,8 +46,8 @@ export function Hero() {
 
       <div className="shell hero__hud" aria-hidden>
         <p className="hud__equation">
-          ∂²h/∂t² = c²∇²h
-          <span>{field.kind === "unsupported" ? "static preview" : "click the surface"}</span>
+          gₜ₊₁ = γ·gₜ + Σ packets
+          <span>{field.kind === "unsupported" ? "static preview" : "click to send a burst"}</span>
         </p>
         <dl className="hud">
           <div>
@@ -57,6 +57,10 @@ export function Hero() {
           <div>
             <dt>nodes</dt>
             <dd>{status ? status.nodes.toLocaleString("en-GB") : "—"}</dd>
+          </div>
+          <div>
+            <dt>packets</dt>
+            <dd>{status ? status.packets : "—"}</dd>
           </div>
           <div>
             <dt>frame</dt>

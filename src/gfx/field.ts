@@ -1,5 +1,5 @@
 /**
- * Shared description of the wave field: grid, world extents, camera and
+ * Shared description of the signal field: grid, world extents, camera and
  * simulation constants.
  */
 
@@ -25,14 +25,14 @@ export const CAMERA = {
   fovDegrees: 48,
 };
 
-/** Wave speed² in cells per step²; low keeps ripples slow and wide. */
-export const WAVE_C2 = 0.13;
-export const DAMPING = 0.9935;
 export const SIM_HZ = 60;
-export const MAX_DROPS = 4;
-
-/** A disturbance: grid position, radius (cells), amplitude. */
-export type Drop = { x: number; z: number; radius: number; amp: number };
+/** Fraction of glow a node keeps per step, and how much bleeds from neighbours. */
+export const GLOW_DECAY = 0.968;
+export const GLOW_BLEED = 0.025;
+/** Packet footprint, in nodes. */
+export const PACKET_RADIUS = 0.62;
+/** Mirrors the array length in signal-field.wgsl. */
+export const MAX_PACKETS = 48;
 
 /* --- picking ------------------------------------------------------------- */
 

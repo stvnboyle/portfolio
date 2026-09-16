@@ -2,6 +2,7 @@ import { Hero } from "@/components/Hero";
 import { Enhancements } from "@/components/Enhancements";
 import { CommandMenu, type Command } from "@/components/CommandMenu";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
+import { Timeline } from "@/components/Timeline";
 import { getArticles, type Article } from "@/data/articles";
 import { getBuildInfo } from "@/data/build";
 import { EXPERIENCES } from "@/data/experiences";
@@ -20,6 +21,7 @@ export default async function Page() {
       <main>
         <Hero />
         <Principles />
+        <Career />
         <Writing articles={articles} />
       </main>
 
@@ -42,6 +44,7 @@ function commands(articles: Article[]): Command[] {
       hint: `#${e.id}`,
       href: `#${e.id}`,
     })),
+    { id: "go-timeline", group: "go to", label: "timeline", hint: "#timeline", href: "#timeline" },
     { id: "go-writing", group: "go to", label: "writing", hint: "#writing", href: "#writing" },
     { id: "go-contact", group: "go to", label: "contact", hint: "#contact", href: "#contact" },
     { id: "copy-email", group: "contact", label: "copy email address", hint: profile.email, copy: profile.email },
@@ -68,7 +71,10 @@ function Nav({ commands }: { commands: Command[] }) {
           {profile.name.toLowerCase()}
         </a>
         <nav className="nav__links" aria-label="Sections">
-          <a href="#principles">principles</a>
+          <a data-drop href="#principles">
+            principles
+          </a>
+          <a href="#timeline">timeline</a>
           <a data-drop href="#writing">
             writing
           </a>
@@ -125,6 +131,20 @@ function Principles() {
             </article>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function Career() {
+  return (
+    <section className="section" id="timeline">
+      <div className="shell">
+        <SectionHead name="timeline">
+          From a computer science degree to leading teams.
+          <span> Newest first, like any good log.</span>
+        </SectionHead>
+        <Timeline />
       </div>
     </section>
   );
