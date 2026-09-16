@@ -26,8 +26,13 @@ export type Engagement = {
 
 export type Role = {
   company: string;
+  /** Column heading in the stack matrix. */
+  short: string;
   title: string;
   period: string;
+  /** "YYYY-MM", or "YYYY" where only the year is known. `null` = present. */
+  start: string;
+  end: string | null;
   location?: string;
   summary: string;
   points: string[];
@@ -39,8 +44,11 @@ export type Role = {
 export const roles: Role[] = [
   {
     company: "hedgehog lab",
+    short: "hedgehog lab",
     title: "Tech Lead & Engineering Manager",
     period: "Jan 2019 — Present",
+    start: "2019-01",
+    end: null,
     location: "Newcastle upon Tyne",
     summary:
       "Owns full-stack architecture and engineering standards across the business. Leads technical delivery for multiple products serving hundreds of thousands of users, managing both internal and forward-deployed engineering teams, and setting engineering standards that scale.",
@@ -87,8 +95,11 @@ export const roles: Role[] = [
   },
   {
     company: "Helloworld Technologies Ltd",
+    short: "gitgood",
     title: "Founder (part-time)",
     period: "Oct 2025 — Present",
+    start: "2025-10",
+    end: null,
     summary:
       "Bootstrapped the business solo and defined the company vision as sole technical founder. Built and architected gitgood.io outside working hours — a platform driving code-review engagement across distributed teams.",
     points: [
@@ -114,8 +125,11 @@ export const roles: Role[] = [
   },
   {
     company: "Lookers",
+    short: "Lookers",
     title: "Systems Developer",
     period: "Jun 2018 — Jan 2019",
+    start: "2018-06",
+    end: "2019-01",
     location: "Newcastle upon Tyne",
     summary:
       "Offered the role immediately prior to graduating. Supported the BI team and maintained the systems keeping stock data flowing across brand and third-party websites.",
@@ -128,8 +142,11 @@ export const roles: Role[] = [
   },
   {
     company: "Mid-sized Software Agency",
+    short: "Placement",
     title: "Software Developer (Internship)",
     period: "2016 — 2017",
+    start: "2016",
+    end: "2017",
     summary:
       "Third-year placement supporting a pre-tenancy software platform used by hundreds of estate agents across the UK. First hands-on introduction to the SDLC and how servers, clients and databases fit together.",
     points: [
@@ -144,91 +161,14 @@ export const education = {
   school: "Northumbria University",
   degree: "BA (Hons) Computer Science — First Class (1:1)",
   period: "2014 — Jun 2018",
+  start: "2014",
+  end: "2018-06",
   location: "Newcastle upon Tyne",
   detail:
     "Covered web technologies, object-oriented programming with Java, relational databases in SQL, embedded systems with C/C++, artificial intelligence and machine learning.",
   dissertation:
     "“Symbiosis” — a web platform connecting professional experts with clients seeking domain expertise via real-time 1:1 messaging, with dashboards and analytics to gamify the experience.",
 };
-
-/**
- * Axes for the radar. `level` is a self-rating out of 100 — the one genuinely
- * subjective thing on this page. Tune these six numbers and the chart, the
- * bars and the ordering all follow.
- */
-export type SkillAxis = {
-  key: string;
-  label: string;
-  short: string;
-  level: number;
-  note: string;
-  items: string[];
-};
-
-export const skillAxes: SkillAxis[] = [
-  {
-    key: "frontend",
-    label: "Frontend",
-    short: "FE",
-    level: 95,
-    note: "Where I've spent the most hours, and still the part I enjoy most.",
-    items: ["TypeScript", "React", "Next.js", "Design systems", "Tailwind", "ChakraUI", "Storybook"],
-  },
-  {
-    key: "architecture",
-    label: "Architecture",
-    short: "ARCH",
-    level: 92,
-    note: "End-to-end system design — the decisions that are expensive to undo.",
-    items: [
-      "End-to-end system design",
-      "Monorepos",
-      "Rendering patterns",
-      "Type-safe client-to-server",
-      "State management",
-      "Database & API design",
-    ],
-  },
-  {
-    key: "leadership",
-    label: "Leadership",
-    short: "LEAD",
-    level: 90,
-    note: "IC and manager both. Delivery, risk, and the people doing the work.",
-    items: [
-      "Tech lead",
-      "Engineering management",
-      "Mentorship & pairing",
-      "Code review",
-      "Career development",
-      "Customer & exec facing",
-    ],
-  },
-  {
-    key: "agentic",
-    label: "Agentic",
-    short: "AGENT",
-    level: 88,
-    note: "Orchestrating agents to ship real work at pace, without losing quality.",
-    items: ["Claude Code", "Multi-agent workflows", "Agent experience (AX)", "AI-assisted delivery"],
-  },
-  {
-    key: "backend",
-    label: "Backend",
-    short: "BE",
-    level: 82,
-    note: "Services and data — typed all the way through wherever I can manage it.",
-    items: ["Node.js", "Python", "Django", "PostgreSQL / SQL", "Drizzle ORM", "REST & RPC design"],
-  },
-  {
-    key: "infra",
-    label: "Infra",
-    short: "INFRA",
-    level: 78,
-    note: "Enough to own it from day zero rather than hand it over.",
-    items: ["AWS", "Terraform", "Vercel", "CI/CD", "Supabase", "Edge caching"],
-  },
-];
 
 export const skillGroups = [
   {
