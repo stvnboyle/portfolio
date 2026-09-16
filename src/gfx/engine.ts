@@ -1,8 +1,9 @@
-import { clock, compute, draw, frameLoop, init, pingPongStorage, surface } from "vgpu";
+import { clock, compute, draw, effect, frameLoop, init, pingPongStorage, surface } from "vgpu";
 import type { FrameLoopHandle, Gpu } from "vgpu";
 import { perspectiveCamera } from "vgpu/scene";
 import fieldShader from "./signal-field.wgsl";
 import renderShader from "./signal-render.wgsl";
+import skyShader from "./signal-sky.wgsl";
 import {
   CAMERA,
   DEPTH,
@@ -99,6 +100,21 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       grid: [grid.gx, grid.gz, grid.width, DEPTH],
       shape: [NEAR_Z, 0, LIFT, canvasSurface.size[1]],
     });
+    // Where the far edge of the plane meets the sky, in top-origin UV.
+    const horizon = () => {
+      const m = camera.viewProjection;
+      const far = [0, 0, NEAR_Z - DEPTH * 0.9];
+      const y = m[1] * far[0] + m[5] * far[1] + m[9] * far[2] + m[13];
+      const w = m[3] * far[0] + m[7] * far[1] + m[11] * far[2] + m[15];
+      return 0.5 - 0.5 * (y / w);
+    };
+    let elapsed = 0;
+    let mood = packets.mood();
+    const sky = effect(gpu, skyShader, {
+      label: "signal-sky",
+      set: { sky: { frame: [horizon(), aspect(), 0, 0], tint: mood } },
+    });
+
     const bloom = draw(gpu, {
       shader: renderShader,
       label: "signal-bloom",
@@ -123,6 +139,7 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       lensValues = lens();
       bloom.set({ view: view() });
       dots.set({ view: view() });
+      sky.set({ sky: { frame: [horizon(), aspect(), elapsed, 0] } });
     });
 
     /* --- input ------------------------------------------------------------ */
@@ -143,7 +160,7 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       if (e.pointerType === "touch") return;
       const now = performance.now();
       lastActivity = now;
-      if (now - lastTrail < 220) return;
+      if (now - lastTrail < 400) return;
       const cell = cellAt(e);
       if (!cell) return;
       lastTrail = now;
@@ -175,7 +192,6 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
 
     const time = clock(gpu);
     const speed = calm ? 0.3 : 1;
-    let elapsed = 0;
     let accumulator = 0;
     let frames = 0;
     let windowStart = performance.now();
@@ -189,11 +205,11 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
 
       // Left alone, the mesh keeps a light, steady flow of its own.
       const idle = now - lastActivity > 2500;
-      if (!calm && idle && now - lastIdleEmit > 700) {
+      if (!calm && idle && now - lastIdleEmit > 1400) {
         lastIdleEmit = now;
         packets.emit(grid.gx * (0.2 + Math.random() * 0.6), grid.gz * (0.05 + Math.random() * 0.4));
       }
-      if (!calm && idle && now - lastIdleBurst > 3800) {
+      if (!calm && idle && now - lastIdleBurst > 5500) {
         lastIdleBurst = now;
         packets.burst(grid.gx * (0.3 + Math.random() * 0.4), grid.gz * (0.08 + Math.random() * 0.3));
       }
@@ -217,7 +233,14 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       lensValues[3] = elapsed;
       bloom.set({ view: { lens: lensValues }, glow: glow.read });
       dots.set({ view: { lens: lensValues }, glow: glow.read });
+      // Ease the sky's tint towards the packets, so it shifts rather than flickers.
+      const target = packets.mood();
+      const k = Math.min(1, dt * 0.8);
+      mood = mood.map((v, i) => v + (target[i] - v) * k) as typeof mood;
+      sky.set({ sky: { frame: [horizon(), aspect(), elapsed, 0], tint: mood } });
+
       frame.pass({ target: canvasSurface, clear: CLEAR }, (pass) => {
+        pass.draw(sky);
         pass.draw(bloom);
         pass.draw(dots);
       });

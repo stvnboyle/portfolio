@@ -8,10 +8,10 @@ export type Vec3 = [number, number, number];
 /** Node counts, plane width in world units, and disc radius. */
 export type Grid = { gx: number; gz: number; width: number; pointSize: number };
 
-export const GRID_DESKTOP: Grid = { gx: 360, gz: 240, width: 17, pointSize: 0.0135 };
+export const GRID_DESKTOP: Grid = { gx: 200, gz: 136, width: 17, pointSize: 0.021 };
 // Portrait screens only see the middle of the plane, so it's narrower and
 // denser rather than the same plane with fewer nodes.
-export const GRID_MOBILE: Grid = { gx: 170, gz: 240, width: 8, pointSize: 0.0125 };
+export const GRID_MOBILE: Grid = { gx: 96, gz: 136, width: 8, pointSize: 0.019 };
 
 /** World-space depth of the plane. It runs from `NEAR_Z` away from the camera. */
 export const DEPTH = 15;
@@ -25,7 +25,7 @@ export const CAMERA = {
 
 export const SIM_HZ = 60;
 /** Fraction of glow a node keeps per step, and how much bleeds from neighbours. */
-export const GLOW_DECAY = 0.965;
+export const GLOW_DECAY = 0.982;
 export const GLOW_BLEED = 0.01;
 /** Packet footprint, in nodes. */
 export const PACKET_RADIUS = 0.75;

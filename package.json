@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "npx serve out",
     "typecheck": "tsc --noEmit",
-    "check:shaders": "vgpu check src/gfx/signal-field.wgsl --require-validation && vgpu check src/gfx/signal-render.wgsl --require-validation"
+    "check:shaders": "vgpu check src/gfx/signal-field.wgsl --require-validation && vgpu check src/gfx/signal-render.wgsl --require-validation && vgpu check src/gfx/signal-sky.wgsl --require-validation"
   },
   "dependencies": {
     "geist": "^1.7.2",

@@ -45,7 +45,7 @@ fn node(ii: u32) -> Node {
   let hue = g / max(peak, 1e-4);
 
   // A barely-there swell keeps the plane breathing; glow lifts nodes slightly.
-  let swell = sin(x * 0.35 + t * 0.18) * 0.05 + sin(z * 0.5 - t * 0.14) * 0.04;
+  let swell = sin(x * 0.35 + t * 0.08) * 0.05 + sin(z * 0.5 - t * 0.06) * 0.04;
 
   var n: Node;
   n.world = vec3f(x, swell + energy * view.shape.z, z);

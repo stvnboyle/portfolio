@@ -190,10 +190,27 @@ kbd {
 }
 
 .nav__brand {
+  display: inline-flex;
+  align-items: center;
   font-size: var(--text-sm);
   font-weight: 500;
   white-space: nowrap;
   margin-right: auto;
+}
+
+.caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.15em;
+  margin-left: 3px;
+  background: var(--fg);
+  animation: caret-blink 1.1s steps(1) infinite;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 .nav__links {
@@ -1589,7 +1606,8 @@ kbd {
   }
 
   .diagram *,
-  .diagram::before {
+  .diagram::before,
+  .caret {
     animation: none !important;
   }
 }

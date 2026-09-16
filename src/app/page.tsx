@@ -67,8 +67,9 @@ function Nav({ commands }: { commands: Command[] }) {
   return (
     <header className="nav">
       <div className="nav__inner">
-        <a className="nav__brand" href="#top">
-          {profile.name.toLowerCase()}
+        <a className="nav__brand" href="#top" aria-label="boyle.dev, back to top">
+          boyle.dev
+          <i className="caret" aria-hidden />
         </a>
         <nav className="nav__links" aria-label="Sections">
           <a data-drop href="#principles">

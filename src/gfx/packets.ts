@@ -76,13 +76,30 @@ export class PacketSystem {
   /** One packet in a random axis direction. */
   emit(x: number, z: number) {
     const axis = AXES[Math.floor(Math.random() * 4)];
-    this.add(x, z, axis, this.nextColor(), 26 + Math.random() * 14, 2.4 + Math.random() * 1.6);
+    this.add(x, z, axis, this.nextColor(), 7 + Math.random() * 4, 4 + Math.random() * 2.5);
   }
 
   /** A burst: one packet per axis, sharing a colour, fanning out from a node. */
   burst(x: number, z: number) {
     const color = this.nextColor();
-    for (const axis of AXES) this.add(x, z, axis, color, 32 + Math.random() * 12, 2.8 + Math.random() * 1.4);
+    for (const axis of AXES) this.add(x, z, axis, color, 9 + Math.random() * 4, 4.5 + Math.random() * 2);
+  }
+
+  /** Strength-weighted colour of the live packets, and how busy the mesh is (0..1). */
+  mood(): [number, number, number, number] {
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let total = 0;
+    for (let i = 0; i < this.packets.length; i++) {
+      const w = this.head[i * 4 + 2];
+      r += this.tint[i * 4] * w;
+      g += this.tint[i * 4 + 1] * w;
+      b += this.tint[i * 4 + 2] * w;
+      total += w;
+    }
+    if (total < 1e-3) return [0.35, 0.45, 0.95, 0];
+    return [r / total, g / total, b / total, Math.min(1, total / 12)];
   }
 
   step(dt: number) {
@@ -118,7 +135,7 @@ export class PacketSystem {
     this.tint.fill(0);
     this.packets.forEach((p, i) => {
       // Ease in at birth and out towards the end of life.
-      const strength = Math.min(1, p.age * 6) * Math.min(1, (p.life - p.age) * 1.5);
+      const strength = Math.min(1, p.age * 3) * Math.min(1, (p.life - p.age) * 0.8);
       this.head.set([p.x, p.z, strength * 1.2, 0], i * 4);
       this.tint.set([...p.color, 0], i * 4);
     });
