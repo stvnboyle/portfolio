@@ -357,9 +357,48 @@ kbd {
   color: var(--fg-dim);
 }
 
+.hud__scenes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+  pointer-events: auto;
+}
+
+.hud__scenes span {
+  min-width: 22ch;
+  text-align: center;
+}
+
+.hud__scenes button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  background: rgb(10 10 11 / 0.6);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  cursor: pointer;
+  transition: box-shadow 0.2s var(--ease);
+}
+
+.hud__scenes button:hover {
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
+}
+
 .hud__equation .hud__formula {
   font-size: inherit;
   color: inherit;
+}
+
+@media (max-width: 640px) {
+  .hud__equation .hud__formula {
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
 }
 
 .hud__formula sup {
@@ -1226,6 +1265,28 @@ kbd {
   border-top: 1px solid var(--line);
 }
 
+/* The scroll light: a canvas that stays in view while the timeline scrolls past. */
+.timeline-wrap {
+  position: relative;
+}
+
+.timeline__light {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -24px;
+  z-index: 1;
+  width: calc(var(--lane, 22px) * 3 + 48px);
+  pointer-events: none;
+}
+
+.timeline__light canvas {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100vh;
+}
+
 .commit {
   display: grid;
   grid-template-columns: calc(var(--lane) * 3) 96px minmax(0, 1fr);
@@ -1524,108 +1585,6 @@ kbd {
 
 .footer {
   padding-block: var(--section-gap) 32px;
-}
-
-/* --- request map ----------------------------------------------------------- */
-
-.trace {
-  margin-bottom: 20px;
-}
-
-.trace__stage {
-  /* Mirrors TRACE_INSET in trace-engine.ts. */
-  --trace-inset: 40px;
-  position: relative;
-  aspect-ratio: 4 / 1;
-  min-height: 220px;
-  border-radius: var(--radius-lg);
-  background: #0b0b0d;
-  box-shadow: inset 0 0 0 1px var(--line);
-  overflow: hidden;
-}
-
-.trace__canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  transition: opacity 1.2s var(--ease);
-}
-
-.trace__stage[data-field="live"] .trace__canvas {
-  opacity: 1;
-}
-
-/* Keep the rounded outline above the canvas. */
-.trace__stage::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px var(--line);
-  pointer-events: none;
-}
-
-.trace__label {
-  --px: var(--x);
-  --py: var(--y);
-  position: absolute;
-  left: calc(var(--trace-inset) + var(--px) * (100% - 2 * var(--trace-inset)));
-  top: calc(var(--trace-inset) + var(--py) * (100% - 2 * var(--trace-inset)));
-  transform: translate(-50%, 13px);
-  font-size: var(--text-xs);
-  color: var(--fg-dim);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-/* Without WebGPU the labels carry their own node markers. */
-.trace__stage[data-field="unsupported"] .trace__label::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: -20px;
-  width: 12px;
-  height: 12px;
-  translate: -50% 0;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1.4px var(--fg-muted);
-}
-
-.trace__meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 16px;
-  margin-top: 10px;
-  font-size: var(--text-xs);
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Narrow screens run the map top to bottom (the engine flips below 1.2:1). */
-@media (max-width: 640px) {
-  .trace__stage {
-    aspect-ratio: 3 / 4;
-  }
-
-  .trace__label {
-    --px: var(--y);
-    --py: var(--x);
-    transform: translate(14px, -50%);
-  }
-
-  /* The far column labels to its left, so nothing runs off the panel. */
-  .trace__label[data-edge="end"] {
-    transform: translate(calc(-100% - 14px), -50%);
-  }
-
-  .trace__stage[data-field="unsupported"] .trace__label::before {
-    left: -20px;
-    top: 50%;
-    translate: 0 -50%;
-  }
 }
 
 .footer__command {

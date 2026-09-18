@@ -3,10 +3,11 @@ import { Enhancements } from "@/components/Enhancements";
 import { CommandMenu, type Command } from "@/components/CommandMenu";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { Timeline } from "@/components/Timeline";
-import { TraceMap } from "@/components/TraceMap";
+import { TimelineLight } from "@/components/TimelineLight";
 import { getArticles, type Article } from "@/data/articles";
 import { getBuildInfo } from "@/data/build";
 import { EXPERIENCES } from "@/data/experiences";
+import { SCENES, SCENE_EVENT } from "@/data/scenes";
 import { education, hobbies, profile } from "@/data/profile";
 
 export default async function Page() {
@@ -50,6 +51,14 @@ function commands(articles: Article[]): Command[] {
     })),
     { id: "go-writing", group: "go to", label: "writing", hint: "#writing", href: "#writing" },
     { id: "go-contact", group: "go to", label: "contact", hint: "#contact", href: "#contact" },
+    ...SCENES.map((scene) => ({
+      id: `scene-${scene.id}`,
+      group: "hero",
+      label: `show ${scene.name}`,
+      hint: "scene",
+      event: SCENE_EVENT,
+      detail: scene.id,
+    })),
     { id: "copy-email", group: "contact", label: "copy email address", hint: profile.email, copy: profile.email },
     { id: "email", group: "contact", label: "send an email", hint: "mailto", href: `mailto:${profile.email}` },
     { id: "linkedin", group: "elsewhere", label: "linkedin", hint: host(profile.links.linkedin), href: profile.links.linkedin, external: true },
@@ -202,7 +211,10 @@ function Career() {
           From a computer science degree to leading teams.
           <span> Newest first.</span>
         </SectionHead>
-        <Timeline />
+        <div className="timeline-wrap">
+          <TimelineLight />
+          <Timeline />
+        </div>
       </div>
     </section>
   );
@@ -252,8 +264,6 @@ function Footer({ rev }: { rev: string }) {
           Building something?
           <span> Say hello.</span>
         </SectionHead>
-
-        <TraceMap />
 
         <a className="footer__command" href={`mailto:${profile.email}`}>
           <span>$ mail</span>
