@@ -125,8 +125,8 @@ export class StrayLayer {
       const x = s.x - window.scrollX;
       const y = s.y - window.scrollY;
       if (y < -20 || y > h + 20) continue;
-      // Fade in and out at the ends of its life.
-      const alpha = Math.min(1, s.age * 2, (LIFE - s.age) / 4) * (0.55 + 0.45 * s.tint);
+      // Same brightness as it had in the hero, so the handover is seamless; fade out at the end.
+      const alpha = Math.min(1, (LIFE - s.age) / 4) * (0.38 + 0.62 * s.tint);
       const rgb = GREY.map((g, i) => Math.round((g + (s.color[i] * 1.2 - g) * s.tint) * 255));
       c.strokeStyle = `rgb(${rgb.join(" ")} / ${alpha})`;
 

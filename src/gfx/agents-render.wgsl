@@ -45,8 +45,9 @@ fn toClip(px: vec2f) -> vec4f {
 
 @vertex
 fn vs_agents(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> Varyings {
-  let s = agents[2u * ii];
-  let tint = agents[2u * ii + 1u];
+  let s = agents[3u * ii];
+  let tint = agents[3u * ii + 1u];
+  let alive = agents[3u * ii + 2u].x;
   let corner = cornerOf(vi);
   let size = view.frame.z;
 
@@ -57,7 +58,8 @@ fn vs_agents(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -
   let world = s.xy + forward * local.x + side * local.y;
 
   var out: Varyings;
-  out.position = toClip(world);
+  // Empty slots collapse to nothing.
+  out.position = select(vec4f(0.0), toClip(world), alive > 0.5);
   out.local = local;
   out.color = mix(vec3f(0.5, 0.52, 0.6), tint.rgb * 1.2 + vec3f(0.05), smoothstep(0.0, 0.7, tint.w));
   // Keep the name and tagline readable: idle agents fade out over the copy.

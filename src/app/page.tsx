@@ -1,5 +1,6 @@
 import { Hero } from "@/components/Hero";
 import { Enhancements } from "@/components/Enhancements";
+import { GlowHeadings } from "@/components/GlowHeadings";
 import { CommandMenu, type Command } from "@/components/CommandMenu";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { Timeline } from "@/components/Timeline";
@@ -18,6 +19,7 @@ export default async function Page() {
   return (
     <>
       <Enhancements />
+      <GlowHeadings />
       <Nav commands={commands(articles)} />
 
       <main>

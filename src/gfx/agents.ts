@@ -12,13 +12,21 @@ type Rgb = [number, number, number];
 /** Mirrors the task array lengths in agents.wgsl and agents-render.wgsl. */
 const MAX_TASKS = 8;
 const SIM_HZ = 60;
+/** vec4s of state per agent: motion, tint, info. Mirrors agents.wgsl. */
+const STRIDE = 3;
 /** A task finishes in this many seconds with a full crew working it; slower with fewer. */
 const WORK_SECONDS = 7;
 const FULL_CREW = 24;
 /** Tasks nobody picks up are dropped after this long. */
 const ABANDON_AFTER = 30;
-/** How often the CPU reads back worker counts and exits. */
+/** Share of a finished task's crew that carries its colour to the next task, and for how long. */
+const HANDOFF_SHARE = 0.4;
+const HANDOFF_SECONDS = 5;
+/** How often the CPU reads back counts (faster while an exit is being watched for). */
 const READBACK_MS = 200;
+const READBACK_EXIT_MS = 80;
+/** Bytes in the per-step counts: 8 task worker counts, alive, spawn ticket. */
+const COUNTS_BYTES = 40;
 /** Bytes in the Exits struct: an atomic count, padded to 16, then two vec4s. */
 const EXITS_BYTES = 48;
 
@@ -37,12 +45,16 @@ type Task = {
   label: HTMLElement;
 };
 
+type Handoff = { to: Task; until: number } | null;
+
 /**
  * A swarm of agents on the GPU. They flock with their neighbours, pick up
  * tasks that appear across the hero, circle them while they work, and take on
  * the task's colour. A task only moves forward while agents are actually on
- * it — the GPU counts them each step — and rings out when it's done. Now and
- * then one agent is let out through the bottom and wanders on down the page.
+ * it — the GPU counts them each step — and when it's done part of its crew
+ * carries the colour on to the next task. Agents leave through the bottom
+ * edge and new squads drop in from the top, so the population ebbs and flows;
+ * now and then a leaver wanders on down the page.
  */
 export const startAgents: StartScene = (canvas, hero, callbacks) =>
   runScene(
@@ -50,56 +62,64 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
     hero,
     callbacks,
     ({ gpu, surface: canvasSurface, small, calm, onCleanup }) => {
-      const count = small ? 260 : 640;
+      const capacity = small ? 520 : 1400;
+      // The population drifts around this, gently rising and falling over minutes.
+      const baseline = small ? 380 : 1050;
       const size = () => [canvas.clientWidth, canvas.clientHeight] as const;
 
-      const initial = new Float32Array(count * 8);
-      for (let i = 0; i < count; i++) {
+      const initial = new Float32Array(capacity * STRIDE * 4);
+      for (let i = 0; i < capacity; i++) {
         const [w, h] = size();
         const angle = Math.random() * Math.PI * 2;
-        initial.set([Math.random() * w, Math.random() * h, Math.cos(angle) * 40, Math.sin(angle) * 40], i * 8);
-        initial.set([0.5, 0.52, 0.6, 0], i * 8 + 4);
+        const o = i * STRIDE * 4;
+        initial.set([Math.random() * w, Math.random() * h, Math.cos(angle) * 40, Math.sin(angle) * 40], o);
+        initial.set([0.5, 0.52, 0.6, 0], o + 4);
+        initial.set([i < baseline ? 1 : 0, -1, 0, 0], o + 8);
       }
-      const state = pingPongStorage(gpu, count * 32);
+      const state = pingPongStorage(gpu, capacity * STRIDE * 16);
       state.read.write(initial);
       state.write.write(initial);
 
-      // GPU → CPU feedback: agents working each task this step, and agents let out.
-      const workers = storage(gpu, MAX_TASKS * 4);
-      const noWorkers = new Uint32Array(MAX_TASKS);
+      // GPU → CPU feedback: per-step counts, and the agent (if any) let out.
+      const counts = storage(gpu, COUNTS_BYTES);
+      const noCounts = new Uint32Array(COUNTS_BYTES / 4);
       const exits = storage(gpu, EXITS_BYTES);
       exits.write(new Uint8Array(EXITS_BYTES));
 
       const pointer = { x: -1e4, y: -1e4, presence: 0, target: 0 };
       let exitBudget = 0;
+      let spawn = { budget: 0, x: 0 };
       const swarmValues = () => ({
-        count,
+        capacity,
         tasks: MAX_TASKS,
         dt: 1 / SIM_HZ,
         near: 10,
-        sight: 42,
+        sight: 40,
         minSpeed: 24,
         maxSpeed: 58,
         fade: 2.5,
         exitBudget,
+        spawnBudget: spawn.budget,
+        spawnX: spawn.x,
+        seed: Math.random() * 100,
         world: size(),
         pointer: [pointer.x, pointer.y, 0, pointer.presence],
       });
 
       let tasks: Array<Task | null> = Array.from({ length: MAX_TASKS }, () => null);
-      const strength = (t: Task | null) => {
-        if (!t) return 0;
-        const fadeIn = Math.min(1, t.age * 1.5);
-        return t.closed ? 0 : fadeIn;
-      };
+      const handoffs: Handoff[] = Array.from({ length: MAX_TASKS }, () => null);
+      let elapsed = 0;
+
+      const strength = (t: Task | null) => (!t || t.closed ? 0 : Math.min(1, t.age * 1.5));
       const taskValues = () => ({
         at: tasks.map((t) => (t ? [t.x, t.y, t.radius, strength(t)] : [0, 0, 1, 0])),
         tint: tasks.map((t) => (t ? [...t.color, 0] : [0, 0, 0, 0])),
+        handoff: handoffs.map((h) => (h ? [h.to.x, h.to.y, 1, HANDOFF_SHARE] : [0, 0, 0, 0])),
       });
 
       const swarm = compute(gpu, swarmShader, {
         label: "agents-swarm",
-        set: { swarm: swarmValues(), tasks: taskValues(), workers, exits },
+        set: { swarm: swarmValues(), tasks: taskValues(), counts, exits },
       });
 
       // The copy's box in canvas pixels, so idle agents can dim over it.
@@ -119,16 +139,20 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       canvasSurface.onResize(measureCopy);
 
       const view = (t: number) => ({ frame: [...size(), 7, t], copy: copyBox });
-      const renderTasks = () => ({
-        ...taskValues(),
-        // Dropped tasks just fade; only finished ones ring out.
-        progress: tasks.map((t) => (t ? [t.progress, t.closed === "dropped" ? 0 : t.burst, 0, 0] : [0, 0, 0, 0])),
-      });
+      const renderTasks = () => {
+        const { at, tint } = taskValues();
+        return {
+          at,
+          tint,
+          // Dropped tasks just fade; only finished ones ring out.
+          progress: tasks.map((t) => (t ? [t.progress, t.closed === "dropped" ? 0 : t.burst, 0, 0] : [0, 0, 0, 0])),
+        };
+      };
       const agents = draw(gpu, {
         shader: renderShader,
         label: "agents",
         entry: { vertex: "vs_agents", fragment: "fs_agents" },
-        instances: count,
+        instances: capacity,
         vertices: 6,
         blend: "premultiplied",
         set: { view: view(0), agents: state.read, tasks: renderTasks() },
@@ -171,6 +195,8 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         const color = PALETTE[colorIndex];
         const label = document.createElement("span");
         label.className = "task-label";
+        // Near the right edge the label sits on the ring's left instead.
+        if (x > size()[0] - 220) label.dataset.side = "left";
         label.style.cssText = `left:${x}px;top:${y}px;--tone:rgb(${color.map((c) => Math.round(c * 255)).join(" ")})`;
         overlay?.append(label);
         const task: Task = {
@@ -199,6 +225,19 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           return post(x, y);
         }
       };
+      // A finished task sends part of its crew on to the nearest open task.
+      const handOff = (slot: number, from: Task) => {
+        const open = tasks.filter((t): t is Task => Boolean(t && !t.closed && t !== from));
+        if (!open.length) return;
+        const distance = (t: Task) => Math.hypot(t.x - from.x, t.y - from.y);
+        const to = open.reduce((a, b) => (distance(a) < distance(b) ? a : b));
+        handoffs[slot] = { to, until: elapsed + HANDOFF_SECONDS };
+      };
+
+      /* --- population ----------------------------------------------------- */
+
+      let alive = baseline;
+      let nextSquad = 3;
 
       /* --- strays --------------------------------------------------------- */
 
@@ -210,19 +249,29 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       const readBack = () => {
         reading = true;
-        const wasOpen = gateOpen;
-        void Promise.all([workers.read(), wasOpen ? exits.read() : Promise.resolve(null)])
-          .then(([w, e]) => {
-            const counts = new Uint32Array(w);
+        const started = performance.now();
+        const watching = gateOpen;
+        void Promise.all([counts.read(), watching ? exits.read() : Promise.resolve(null)])
+          .then(([c, e]) => {
+            const values = new Uint32Array(c);
             tasks.forEach((t, i) => {
-              if (t) t.workers = t.closed ? 0 : counts[i];
+              if (t) t.workers = t.closed ? 0 : values[i];
             });
+            alive = values[8];
             if (!e || !gateOpen) return;
-            const exitCount = new Uint32Array(e, 0, 1)[0];
-            if (exitCount < 1) return;
+            if (new Uint32Array(e, 0, 1)[0] < 1) return;
             const [x, , vx, vy, r, g, b, tint] = new Float32Array(e, 16, 8);
+            // Pick it up where it will be by now, just past the hero's bottom edge.
+            const late = (performance.now() - started) / 1000 + READBACK_EXIT_MS / 2000;
             const rect = canvas.getBoundingClientRect();
-            strays.release(rect.left + window.scrollX + x, rect.bottom + window.scrollY, vx, vy, [r, g, b], tint);
+            strays.release(
+              rect.left + window.scrollX + x + vx * late,
+              rect.bottom + window.scrollY + 6 + Math.max(vy, 10) * late,
+              vx,
+              vy,
+              [r, g, b],
+              tint
+            );
             gateOpen = false;
             exitBudget = 0;
             gateCooldown = 9 + Math.random() * 6;
@@ -260,14 +309,13 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       /* --- loop ----------------------------------------------------------- */
 
-      let elapsed = 0;
       let accumulator = 0;
       let nextPost = 1.5;
       let sinceMeasure = 0;
 
       return {
         stats: () => [
-          ["agents", count.toLocaleString("en-GB")],
+          ["agents", alive.toLocaleString("en-GB")],
           ["working", tasks.reduce((sum, t) => sum + (t?.workers ?? 0), 0).toLocaleString("en-GB")],
           ["done", completed.toLocaleString("en-GB")],
         ],
@@ -287,7 +335,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           }
 
           // Progress comes from agents actually on the task, as counted on the GPU.
-          tasks = tasks.map((t) => {
+          tasks = tasks.map((t, slot) => {
             if (!t) return null;
             t.age += dt;
             if (!t.closed) {
@@ -295,6 +343,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
               if (t.progress >= 1) {
                 t.closed = "done";
                 completed++;
+                handOff(slot, t);
               } else if (t.age > ABANDON_AFTER && t.progress < 0.05) {
                 t.closed = "dropped";
               }
@@ -307,6 +356,23 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             t.label.remove();
             return null;
           });
+          // Handoffs end on time, or when the task they were heading for closes.
+          handoffs.forEach((h, i) => {
+            if (h && (elapsed > h.until || h.to.closed)) handoffs[i] = null;
+          });
+
+          // New squads drop in from the top while the population is below where it's drifting.
+          nextSquad -= dt;
+          const target = baseline * (1 + 0.12 * Math.sin(elapsed / 45));
+          if (nextSquad <= 0) {
+            nextSquad = 2.5 + Math.random() * 3;
+            if (!calm && alive < target) {
+              spawn = {
+                budget: Math.min(capacity - alive, Math.round(10 + Math.random() * (small ? 10 : 24))),
+                x: size()[0] * (0.1 + Math.random() * 0.8),
+              };
+            }
+          }
 
           // Open the exit now and then, as long as the page isn't already busy.
           gateCooldown -= dt;
@@ -317,19 +383,20 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           }
 
           pointer.presence += (pointer.target - pointer.presence) * (1 - Math.exp(-realDt * 6));
-          swarm.set({ swarm: swarmValues(), tasks: taskValues() });
           accumulator += dt;
           for (let n = 0; accumulator >= 1 / SIM_HZ && n < 2; n++) {
             accumulator -= 1 / SIM_HZ;
-            workers.write(noWorkers);
-            swarm.set({ current: state.read, next: state.write });
-            swarm.dispatch(Math.ceil(count / 64));
+            counts.write(noCounts);
+            swarm.set({ swarm: swarmValues(), tasks: taskValues(), current: state.read, next: state.write });
+            swarm.dispatch(Math.ceil(capacity / 64));
             state.swap();
+            // A squad arrives in a single step.
+            spawn = { budget: 0, x: 0 };
           }
           if (accumulator > 1 / SIM_HZ) accumulator = 0;
 
           const now = performance.now();
-          if (!reading && now - lastRead > READBACK_MS) {
+          if (!reading && now - lastRead > (gateOpen ? READBACK_EXIT_MS : READBACK_MS)) {
             lastRead = now;
             readBack();
           }
@@ -340,7 +407,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
           // The sky takes on the colours of the open tasks.
           const live = tasks.filter((t): t is Task => Boolean(t && !t.closed));
-          const target: [number, number, number, number] = live.length
+          const tone: [number, number, number, number] = live.length
             ? [
                 live.reduce((s, t) => s + t.color[0], 0) / live.length,
                 live.reduce((s, t) => s + t.color[1], 0) / live.length,
@@ -349,7 +416,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
               ]
             : [0.35, 0.45, 0.95, 0];
           const k = Math.min(1, dt * 0.6);
-          mood = mood.map((v, i) => v + (target[i] - v) * k) as typeof mood;
+          mood = mood.map((v, i) => v + (tone[i] - v) * k) as typeof mood;
           sky.set({ sky: { frame: [1.05, aspect(), elapsed, 0], tint: mood } });
 
           frame.pass({ target: canvasSurface, clear: CLEAR }, (pass) => {

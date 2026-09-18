@@ -317,6 +317,10 @@ kbd {
   transition: opacity 0.3s var(--ease);
 }
 
+.task-label[data-side="left"] {
+  transform: translate(calc(-100% - 84px), -50%);
+}
+
 /* Agents that have left the hero, wandering down the page. */
 .strays {
   position: fixed;
@@ -479,8 +483,19 @@ kbd {
   letter-spacing: -0.04em;
 }
 
-.section__title span {
+.section__title > span:not([data-g]) {
   color: var(--fg-muted);
+}
+
+/* --- glowing headings ----------------------------------------------------- */
+
+/* Letters light up in the agents' colours under the pointer, then settle back. */
+[data-g] {
+  --heat: 0;
+  color: color-mix(in srgb, var(--glow, currentColor) calc(var(--heat) * 100%), currentColor);
+  text-shadow:
+    0 0 calc(var(--heat) * 14px) color-mix(in srgb, var(--glow, transparent) calc(var(--heat) * 85%), transparent),
+    0 0 calc(var(--heat) * 34px) color-mix(in srgb, var(--glow, transparent) calc(var(--heat) * 45%), transparent);
 }
 
 /* --- about --------------------------------------------------------------- */

@@ -1,13 +1,21 @@
 // One step of an agent swarm. Each agent flocks with its neighbours
 // (separation, alignment, cohesion), picks up nearby tasks and circles them
-// while it works, and takes on the task's colour. State is two vec4s per
-// agent: [2i] position.xy, velocity.xy (CSS px); [2i + 1] tint rgb, tint weight.
+// while it works, and takes on the task's colour. When a task finishes, some
+// of its crew carry the colour over to the next task (a handoff).
 //
-// Two small buffers report back to the CPU: how many agents are working each
-// task this step, and the agent (if any) let out through the bottom edge.
+// State is three vec4s per agent:
+//   [3i]     position.xy, velocity.xy (CSS px)
+//   [3i + 1] tint rgb, tint weight
+//   [3i + 2] alive (0/1), last task worked (-1 = none), -, -
+//
+// Agents leave for good through the bottom edge; new ones arrive at the top
+// when the CPU grants spawns. A per-step buffer reports back how many agents
+// are alive and working each task, and one exit slot lets the CPU carry an
+// agent on down the page.
 
 struct Swarm {
-  count: u32,
+  // Buffer capacity (live agents are flagged in state).
+  capacity: u32,
   tasks: u32,
   dt: f32,
   // Neighbourhood radii (px): too close, and in view.
@@ -18,8 +26,12 @@ struct Swarm {
   maxSpeed: f32,
   // Seconds for a tint to fade once an agent is off task.
   fade: f32,
-  // How many agents may leave through the bottom edge this step (0 or 1).
+  // How many agents may be recorded leaving this step (0 or 1).
   exitBudget: u32,
+  // How many dead slots may come back to life this step, and where (x, px).
+  spawnBudget: u32,
+  spawnX: f32,
+  seed: f32,
   // Width, height of the world (px).
   world: vec2f,
   // Pointer x, y (px) and presence (0..1).
@@ -30,12 +42,21 @@ struct Swarm {
 struct Tasks {
   at: array<vec4f, 8>,
   tint: array<vec4f, 8>,
+  // Per finished task: where its crew hands off to (x, y), active (0/1), share of the crew.
+  handoff: array<vec4f, 8>,
+}
+
+// Reset by the CPU every step.
+struct Step {
+  workers: array<atomic<u32>, 8>,
+  alive: atomic<u32>,
+  spawnTicket: atomic<u32>,
 }
 
 struct Exits {
   // Agents that tried to leave; only the first `exitBudget` are recorded.
   count: atomic<u32>,
-  // Per exit: x, -, velocity.xy; then tint rgb, weight.
+  // x, -, velocity.xy; then tint rgb, weight.
   items: array<vec4f, 2>,
 }
 
@@ -43,21 +64,46 @@ struct Exits {
 @group(0) @binding(1) var<uniform> tasks: Tasks;
 @group(0) @binding(2) var<storage, read> current: array<vec4f>;
 @group(0) @binding(3) var<storage, read_write> next: array<vec4f>;
-@group(0) @binding(4) var<storage, read_write> workers: array<atomic<u32>, 8>;
+@group(0) @binding(4) var<storage, read_write> counts: Step;
 @group(0) @binding(5) var<storage, read_write> exits: Exits;
 
-// Shortest offset from a to b on the wrapping world.
-fn wrapped(a: vec2f, b: vec2f) -> vec2f {
+fn hash(x: f32) -> f32 {
+  return fract(sin(x * 12.9898 + swarm.seed * 78.233) * 43758.5453);
+}
+
+// Shortest horizontal-wrapping offset from a to b (the world wraps left/right only).
+fn offset(a: vec2f, b: vec2f) -> vec2f {
   let d = b - a;
-  return d - swarm.world * round(d / swarm.world);
+  return vec2f(d.x - swarm.world.x * round(d.x / swarm.world.x), d.y);
 }
 
 @compute @workgroup_size(64)
 fn step(@builtin(global_invocation_id) id: vec3u) {
   let i = id.x;
-  if (i >= swarm.count) { return; }
-  let me = current[2u * i];
-  var tint = current[2u * i + 1u];
+  if (i >= swarm.capacity) { return; }
+  let me = current[3u * i];
+  var tint = current[3u * i + 1u];
+  var info = current[3u * i + 2u];
+
+  // Dead slots stay dead unless a spawn is granted: then they arrive as part of
+  // a squad dropping in from the top edge.
+  if (info.x < 0.5) {
+    if (swarm.spawnBudget > 0u && atomicAdd(&counts.spawnTicket, 1u) < swarm.spawnBudget) {
+      let r = hash(f32(i));
+      let x = swarm.spawnX + (r - 0.5) * 90.0;
+      let angle = 1.5708 + (hash(f32(i) + 7.0) - 0.5) * 0.9;
+      next[3u * i] = vec4f(x - swarm.world.x * floor(x / swarm.world.x), -4.0 - r * 30.0, cos(angle) * 45.0, sin(angle) * 45.0);
+      next[3u * i + 1u] = vec4f(0.5, 0.52, 0.6, 0.0);
+      next[3u * i + 2u] = vec4f(1.0, -1.0, 0.0, 0.0);
+      atomicAdd(&counts.alive, 1u);
+    } else {
+      next[3u * i] = me;
+      next[3u * i + 1u] = tint;
+      next[3u * i + 2u] = info;
+    }
+    return;
+  }
+
   let p = me.xy;
   var v = me.zw;
 
@@ -65,10 +111,10 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
   var heading = vec2f(0.0);
   var centre = vec2f(0.0);
   var seen = 0.0;
-  for (var j = 0u; j < swarm.count; j++) {
-    if (j == i) { continue; }
-    let other = current[2u * j];
-    let d = wrapped(p, other.xy);
+  for (var j = 0u; j < swarm.capacity; j++) {
+    if (j == i || current[3u * j + 2u].x < 0.5) { continue; }
+    let other = current[3u * j];
+    let d = offset(p, other.xy);
     let r2 = dot(d, d);
     if (r2 < swarm.sight * swarm.sight) {
       heading += other.zw;
@@ -89,13 +135,13 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
   for (var k = 0u; k < swarm.tasks; k++) {
     let t = tasks.at[k];
     if (t.w <= 0.0) { continue; }
-    let d = length(wrapped(p, t.xy));
+    let d = length(offset(p, t.xy));
     if (d < t.z * 9.0 && d < bestD) { bestD = d; best = i32(k); }
   }
   var working = 0.0;
   if (best >= 0) {
     let t = tasks.at[best];
-    let d = wrapped(p, t.xy);
+    let d = offset(p, t.xy);
     let r = max(length(d), 1.0);
     let toward = d / r;
     let around = vec2f(-toward.y, toward.x);
@@ -105,33 +151,57 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
     // balances their speed; anyone in that band is working the task.
     working = t.w * (1.0 - smoothstep(t.z * 3.2, t.z * 4.2, r));
     tint = vec4f(mix(tint.rgb, tasks.tint[best].rgb, min(1.0, working * swarm.dt * 4.0)), tint.w);
-    if (r < t.z * 4.2) { atomicAdd(&workers[best], 1u); }
+    if (r < t.z * 4.2) {
+      atomicAdd(&counts.workers[best], 1u);
+      info.y = f32(best);
+    }
+  }
+
+  // Handoff: part of a finished task's crew carries its colour to the next task.
+  var handingOff = false;
+  if (best < 0 && info.y >= 0.0) {
+    let h = tasks.handoff[u32(info.y)];
+    if (h.z > 0.5 && hash(f32(i) * 1.37) < h.w) {
+      let d = offset(p, h.xy);
+      steer += (normalize(d + vec2f(1e-3, 0.0)) * swarm.maxSpeed * 1.3 - v) * 3.0;
+      handingOff = true;
+    }
   }
 
   // The pointer draws curious agents in, without holding them.
-  let toPointer = wrapped(p, swarm.pointer.xy);
+  let toPointer = offset(p, swarm.pointer.xy);
   let pd = length(toPointer);
   steer += toPointer / max(pd, 1.0) * swarm.pointer.w * 60.0 * (1.0 - smoothstep(40.0, 220.0, pd));
 
   v += steer * swarm.dt;
   let speed = length(v);
-  v = v / max(speed, 1e-3) * clamp(speed, swarm.minSpeed, swarm.maxSpeed);
+  let top = select(swarm.maxSpeed, swarm.maxSpeed * 1.4, handingOff);
+  v = v / max(speed, 1e-3) * clamp(speed, swarm.minSpeed, top);
   var np = p + v * swarm.dt;
 
-  tint.w = max(working, tint.w - swarm.dt / swarm.fade);
+  // Carriers keep their colour until they arrive; others forget the task as it fades.
+  if (!handingOff) { tint.w = max(working, tint.w - swarm.dt / swarm.fade); }
+  if (tint.w < 0.05) { info.y = -1.0; }
 
-  // Leaving through the bottom: if the gate is open, this agent carries on down
-  // the page (the CPU picks it up) and a fresh one enters at the top.
-  if (np.y >= swarm.world.y && swarm.exitBudget > 0u) {
-    let slot = atomicAdd(&exits.count, 1u);
-    if (slot < swarm.exitBudget) {
+  // The top edge turns agents back; left and right wrap.
+  if (np.y < 0.0 && v.y < 0.0) { v.y = -v.y; }
+  np.x -= swarm.world.x * floor(np.x / swarm.world.x);
+
+  // The bottom edge is a way out. One leaver now and then is handed to the
+  // CPU to carry on down the page; the rest simply go.
+  if (np.y > swarm.world.y + 6.0) {
+    if (swarm.exitBudget > 0u && atomicAdd(&exits.count, 1u) < swarm.exitBudget) {
       exits.items[0] = vec4f(np.x, 0.0, v);
       exits.items[1] = tint;
-      tint = vec4f(tint.rgb, 0.0);
     }
+    next[3u * i] = vec4f(np, v);
+    next[3u * i + 1u] = tint;
+    next[3u * i + 2u] = vec4f(0.0, -1.0, 0.0, 0.0);
+    return;
   }
-  np -= swarm.world * floor(np / swarm.world);
 
-  next[2u * i] = vec4f(np, v);
-  next[2u * i + 1u] = tint;
+  atomicAdd(&counts.alive, 1u);
+  next[3u * i] = vec4f(np, v);
+  next[3u * i + 1u] = tint;
+  next[3u * i + 2u] = info;
 }
