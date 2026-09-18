@@ -6,6 +6,7 @@ import renderShader from "./signal-render.wgsl";
 import skyShader from "./signal-sky.wgsl";
 import {
   CAMERA,
+  CURSOR,
   DEPTH,
   GLOW_BLEED,
   GLOW_DECAY,
@@ -94,11 +95,19 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       },
     });
 
+    // The hover spotlight eases after the pointer; `target` is null off the plane.
+    const cursor = { x: 0, z: 0, strength: 0, target: null as { x: number; z: number } | null };
+    const cursorUniforms = () => ({
+      cursor: [cursor.x, cursor.z, cursor.strength * CURSOR.strength, CURSOR.radius],
+      cursorTint: [...packets.currentColor, 0],
+    });
+
     const view = () => ({
       viewProjection: camera.viewProjection,
       lens: lensValues,
       grid: [grid.gx, grid.gz, grid.width, DEPTH],
       shape: [NEAR_Z, 0, LIFT, canvasSurface.size[1]],
+      ...cursorUniforms(),
     });
     // Where the far edge of the plane meets the sky, in top-origin UV.
     const horizon = () => {
@@ -145,6 +154,7 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
     /* --- input ------------------------------------------------------------ */
 
     let lastTrail = 0;
+    let trailFrom: { x: number; z: number } | null = null;
     let lastActivity = performance.now();
     let lastIdleEmit = 0;
     let lastIdleBurst = 0;
@@ -155,23 +165,45 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       const ndcY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
       return screenToCell(ndcX, ndcY, rect.width / rect.height, grid);
     };
-    // Moving the pointer lets out a packet now and then; pressing sends a burst.
+    // The pointer carries a spotlight, and moving it lets out packets that head
+    // the way it's going. Pressing sends a burst.
     const onMove = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
       const now = performance.now();
       lastActivity = now;
-      if (now - lastTrail < 400) return;
       const cell = cellAt(e);
-      if (!cell) return;
+      if (!cell) {
+        cursor.target = null;
+        return;
+      }
+      if (!cursor.target && cursor.strength < 0.01) {
+        cursor.x = cell.x;
+        cursor.z = cell.z;
+      }
+      cursor.target = cell;
+
+      trailFrom ??= cell;
+      const dx = cell.x - trailFrom.x;
+      const dz = cell.z - trailFrom.z;
+      if (now - lastTrail < 140 || Math.hypot(dx, dz) < 1.5) return;
       lastTrail = now;
-      packets.emit(cell.x, cell.z);
+      trailFrom = cell;
+      const axis: [number, number] = Math.abs(dx) > Math.abs(dz) ? [Math.sign(dx), 0] : [0, Math.sign(dz)];
+      packets.emit(cell.x, cell.z, axis);
+    };
+    const onLeave = () => {
+      cursor.target = null;
+      trailFrom = null;
     };
     const onDown = (e: PointerEvent) => {
       lastActivity = performance.now();
+      // Leave presses on the copy alone, so text can be selected.
+      if ((e.target as Element).closest(".hero__inner > *")) return;
       const cell = cellAt(e);
       if (cell) packets.burst(cell.x, cell.z);
     };
     hero.addEventListener("pointermove", onMove, { passive: true });
+    hero.addEventListener("pointerleave", onLeave, { passive: true });
     hero.addEventListener("pointerdown", onDown, { passive: true });
 
     let onScreen = true;
@@ -181,6 +213,7 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
     cleanups.push(() => {
       visibility.disconnect();
       hero.removeEventListener("pointermove", onMove);
+      hero.removeEventListener("pointerleave", onLeave);
       hero.removeEventListener("pointerdown", onDown);
     });
 
@@ -230,9 +263,19 @@ export function startSignalField(canvas: HTMLCanvasElement, hero: HTMLElement, c
       }
       if (accumulator > 1 / SIM_HZ) accumulator = 0;
 
+      // Follow the pointer on the display's clock, not the sim's, so hover stays snappy.
+      const realDt = Math.min(time.deltaTime, 0.1);
+      if (cursor.target) {
+        const follow = 1 - Math.exp(-realDt * CURSOR.follow);
+        cursor.x += (cursor.target.x - cursor.x) * follow;
+        cursor.z += (cursor.target.z - cursor.z) * follow;
+      }
+      const fade = cursor.target ? 1 - Math.exp(-realDt * 14) : 1 - Math.exp(-realDt * 4);
+      cursor.strength += ((cursor.target ? 1 : 0) - cursor.strength) * fade;
+
       lensValues[3] = elapsed;
-      bloom.set({ view: { lens: lensValues }, glow: glow.read });
-      dots.set({ view: { lens: lensValues }, glow: glow.read });
+      bloom.set({ view: { lens: lensValues, ...cursorUniforms() }, glow: glow.read });
+      dots.set({ view: { lens: lensValues, ...cursorUniforms() }, glow: glow.read });
       // Ease the sky's tint towards the packets, so it shifts rather than flickers.
       const target = packets.mood();
       const k = Math.min(1, dt * 0.8);

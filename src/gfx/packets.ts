@@ -73,9 +73,13 @@ export class PacketSystem {
     });
   }
 
-  /** One packet in a random axis direction. */
-  emit(x: number, z: number) {
-    const axis = AXES[Math.floor(Math.random() * 4)];
+  /** The colour the most recent packet went out in. */
+  get currentColor(): Rgb {
+    return PALETTE[this.paletteIndex];
+  }
+
+  /** One packet, heading along `axis` or a random one. */
+  emit(x: number, z: number, axis = AXES[Math.floor(Math.random() * 4)]) {
     this.add(x, z, axis, this.nextColor(), 7 + Math.random() * 4, 4 + Math.random() * 2.5);
   }
 
@@ -135,7 +139,7 @@ export class PacketSystem {
     this.tint.fill(0);
     this.packets.forEach((p, i) => {
       // Ease in at birth and out towards the end of life.
-      const strength = Math.min(1, p.age * 3) * Math.min(1, (p.life - p.age) * 0.8);
+      const strength = Math.min(1, p.age * 6) * Math.min(1, (p.life - p.age) * 0.8);
       this.head.set([p.x, p.z, strength * 1.2, 0], i * 4);
       this.tint.set([...p.color, 0], i * 4);
     });

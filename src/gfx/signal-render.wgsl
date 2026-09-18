@@ -10,6 +10,10 @@ struct View {
   grid: vec4f,
   // near z, -, lift per unit of glow, viewport height (px)
   shape: vec4f,
+  // Hover spotlight: x, z (nodes), strength, radius (nodes)
+  cursor: vec4f,
+  // rgb of the spotlight, -
+  cursorTint: vec4f,
 }
 
 @group(0) @binding(0) var<uniform> view: View;
@@ -39,7 +43,11 @@ fn node(ii: u32) -> Node {
 
   // Tone-map on the brightest channel only, so a strong packet stays its own
   // saturated colour instead of washing out towards white.
-  let g = glow[ii].rgb;
+  // The pointer lights nodes directly, so hover answers on the same frame
+  // instead of waiting for the field to build up.
+  let dc = vec2f(f32(ii % gx), f32(ii / gx)) - view.cursor.xy;
+  let spot = view.cursor.z * exp(-dot(dc, dc) / (view.cursor.w * view.cursor.w));
+  let g = glow[ii].rgb + view.cursorTint.rgb * spot;
   let peak = max(max(g.r, g.g), g.b);
   let energy = 1.0 - exp(-peak * 1.6);
   let hue = g / max(peak, 1e-4);

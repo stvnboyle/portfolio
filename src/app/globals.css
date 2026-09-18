@@ -297,13 +297,16 @@ kbd {
   mask: linear-gradient(to bottom, transparent, #000 25%, #000 60%, transparent);
 }
 
+/* The empty space passes through to the field; the text itself stays selectable. */
 .hero__inner {
   padding-top: calc(var(--nav-h) + clamp(44px, 13vh, 140px));
   pointer-events: none;
 }
 
-.hero__inner a {
+.hero__inner > * {
+  width: fit-content;
   pointer-events: auto;
+  user-select: text;
 }
 
 .hero__eyebrow {
@@ -354,6 +357,16 @@ kbd {
   color: var(--fg-dim);
 }
 
+.hud__equation .hud__formula {
+  font-size: inherit;
+  color: inherit;
+}
+
+.hud__formula sup {
+  font-size: 0.72em;
+  line-height: 0;
+}
+
 .hud {
   display: flex;
   gap: clamp(16px, 3vw, 32px);
@@ -399,6 +412,114 @@ kbd {
 
 .section__title span {
   color: var(--fg-muted);
+}
+
+/* --- about --------------------------------------------------------------- */
+
+.about {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: start;
+}
+
+.about__photo {
+  position: relative;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* A thin burst of the palette around the frame, drawn over the photo. */
+.about__photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #2a7aff, #9450ff 40%, #ff3d99 70%, var(--line) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.about__photo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.about__photo figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  box-shadow: inset 0 1px 0 var(--line);
+}
+
+.about__copy {
+  display: grid;
+  gap: 18px;
+  font-size: var(--text-base);
+  line-height: 1.75;
+  color: var(--fg-dim);
+}
+
+.about__facts {
+  display: grid;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 22px;
+  box-shadow: inset 0 1px 0 var(--line);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.about__facts > div {
+  display: grid;
+  grid-template-columns: 11ch minmax(0, 1fr);
+  gap: 16px;
+}
+
+.about__facts dt {
+  color: var(--fg-muted);
+}
+
+.about__facts dd {
+  color: var(--fg);
+}
+
+.about__hobbies {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.about__hobbies li::before {
+  content: "- ";
+  color: var(--fg-muted);
+}
+
+@media (max-width: 760px) {
+  .about {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .about__photo {
+    max-width: 360px;
+  }
+
+  .about__facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
 }
 
 /* --- principles ---------------------------------------------------------- */
@@ -1403,6 +1524,108 @@ kbd {
 
 .footer {
   padding-block: var(--section-gap) 32px;
+}
+
+/* --- request map ----------------------------------------------------------- */
+
+.trace {
+  margin-bottom: 20px;
+}
+
+.trace__stage {
+  /* Mirrors TRACE_INSET in trace-engine.ts. */
+  --trace-inset: 40px;
+  position: relative;
+  aspect-ratio: 4 / 1;
+  min-height: 220px;
+  border-radius: var(--radius-lg);
+  background: #0b0b0d;
+  box-shadow: inset 0 0 0 1px var(--line);
+  overflow: hidden;
+}
+
+.trace__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 1.2s var(--ease);
+}
+
+.trace__stage[data-field="live"] .trace__canvas {
+  opacity: 1;
+}
+
+/* Keep the rounded outline above the canvas. */
+.trace__stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--line);
+  pointer-events: none;
+}
+
+.trace__label {
+  --px: var(--x);
+  --py: var(--y);
+  position: absolute;
+  left: calc(var(--trace-inset) + var(--px) * (100% - 2 * var(--trace-inset)));
+  top: calc(var(--trace-inset) + var(--py) * (100% - 2 * var(--trace-inset)));
+  transform: translate(-50%, 13px);
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Without WebGPU the labels carry their own node markers. */
+.trace__stage[data-field="unsupported"] .trace__label::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -20px;
+  width: 12px;
+  height: 12px;
+  translate: -50% 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.4px var(--fg-muted);
+}
+
+.trace__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-top: 10px;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Narrow screens run the map top to bottom (the engine flips below 1.2:1). */
+@media (max-width: 640px) {
+  .trace__stage {
+    aspect-ratio: 3 / 4;
+  }
+
+  .trace__label {
+    --px: var(--y);
+    --py: var(--x);
+    transform: translate(14px, -50%);
+  }
+
+  /* The far column labels to its left, so nothing runs off the panel. */
+  .trace__label[data-edge="end"] {
+    transform: translate(calc(-100% - 14px), -50%);
+  }
+
+  .trace__stage[data-field="unsupported"] .trace__label::before {
+    left: -20px;
+    top: 50%;
+    translate: 0 -50%;
+  }
 }
 
 .footer__command {

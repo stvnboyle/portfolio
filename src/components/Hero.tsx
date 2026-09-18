@@ -46,7 +46,9 @@ export function Hero() {
 
       <div className="shell hero__hud" aria-hidden>
         <p className="hud__equation">
-          gₜ₊₁ = γ·gₜ + Σ packets
+          <span className="hud__formula">
+            gₜ₊₁ = γ(gₜ + κ∇²gₜ) + Σₖ sₖ·e<sup>−|x−pₖ|²/r²</sup>
+          </span>
           <span>{field.kind === "unsupported" ? "static preview" : "click to send a burst"}</span>
         </p>
         <dl className="hud">

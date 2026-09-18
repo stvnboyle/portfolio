@@ -29,6 +29,8 @@ export const GLOW_DECAY = 0.982;
 export const GLOW_BLEED = 0.01;
 /** Packet footprint, in nodes. */
 export const PACKET_RADIUS = 0.75;
+/** Hover spotlight: radius in nodes, peak glow, and how fast it follows (per second). */
+export const CURSOR = { radius: 3.2, strength: 0.75, follow: 28 };
 /** Mirrors the array length in signal-field.wgsl. */
 export const MAX_PACKETS = 48;
 

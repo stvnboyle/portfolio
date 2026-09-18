@@ -2,12 +2,12 @@ import { education, roles, type Engagement } from "./profile";
 
 /**
  * The career as a branch graph, newest first like `git log --graph`.
- * Three lanes: work, study, and gitgood running alongside work.
+ * Three lanes: work, study, and HelloWorld Technologies running alongside work.
  */
 export const LANES = [
   { id: "work", label: "work", tone: "#ededed" },
   { id: "study", label: "study", tone: "#6aa8ff" },
-  { id: "gitgood", label: "gitgood", tone: "#ff8fb8" },
+  { id: "helloworld", label: "helloworld", tone: "#ff8fb8" },
 ] as const;
 
 export type LaneId = (typeof LANES)[number]["id"];
@@ -35,23 +35,23 @@ const role = (company: string) => {
 };
 
 const hedgehog = role("hedgehog lab");
-const helloworld = role("Helloworld Technologies Ltd");
+const helloworld = role("HelloWorld Technologies");
 const lookers = role("Lookers");
 const placement = role("Mid-sized Software Agency");
 
 export const TIMELINE: TimelineEvent[] = [
   {
-    id: "gitgood",
-    lane: "gitgood",
+    id: "helloworld",
+    lane: "helloworld",
     ref: "founded",
     date: "Oct 2025",
     title: helloworld.title,
-    org: `${helloworld.company} · gitgood.io`,
+    org: helloworld.company,
     period: helloworld.period,
-    summary: helloworld.summary,
+    summary:
+      "Bootstrapped the business solo and defined the company vision as sole technical founder, building and architecting a platform outside working hours that drives code-review engagement across distributed teams.",
     points: helloworld.points,
     stack: helloworld.stack,
-    link: helloworld.link,
   },
   {
     id: "hedgehog-lead",
@@ -69,11 +69,20 @@ export const TIMELINE: TimelineEvent[] = [
   {
     id: "hedgehog-senior",
     lane: "work",
-    ref: "joined",
-    date: "Jan 2019",
+    ref: "promoted",
+    date: "2021",
     title: "Senior Software Engineer",
     org: hedgehog.company,
-    period: "Jan 2019 — 2022",
+    period: "2021 — 2022",
+  },
+  {
+    id: "hedgehog-engineer",
+    lane: "work",
+    ref: "joined",
+    date: "Jan 2019",
+    title: "Software Engineer",
+    org: hedgehog.company,
+    period: "Jan 2019 — 2021",
   },
   {
     id: "graduated",
@@ -130,6 +139,6 @@ export function laneSpans(): Record<LaneId, { top: number; bottom: number }> {
   return {
     work: { top: 0, bottom: rowOf("placement") },
     study: { top: rowOf("graduated"), bottom: rowOf("started") },
-    gitgood: { top: 0, bottom: rowOf("gitgood") },
+    helloworld: { top: 0, bottom: rowOf("helloworld") },
   };
 }

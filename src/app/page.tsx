@@ -3,10 +3,11 @@ import { Enhancements } from "@/components/Enhancements";
 import { CommandMenu, type Command } from "@/components/CommandMenu";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { Timeline } from "@/components/Timeline";
+import { TraceMap } from "@/components/TraceMap";
 import { getArticles, type Article } from "@/data/articles";
 import { getBuildInfo } from "@/data/build";
 import { EXPERIENCES } from "@/data/experiences";
-import { profile } from "@/data/profile";
+import { education, hobbies, profile } from "@/data/profile";
 
 export default async function Page() {
   // Fetched once at build time — the published HTML already contains the posts.
@@ -20,8 +21,9 @@ export default async function Page() {
 
       <main>
         <Hero />
-        <Principles />
+        <About />
         <Career />
+        <Principles />
         <Writing articles={articles} />
       </main>
 
@@ -36,6 +38,8 @@ const host = (url: string) => new URL(url).hostname.replace(/^www\./, "");
 
 function commands(articles: Article[]): Command[] {
   return [
+    { id: "go-about", group: "go to", label: "about", hint: "#about", href: "#about" },
+    { id: "go-timeline", group: "go to", label: "timeline", hint: "#timeline", href: "#timeline" },
     { id: "go-principles", group: "go to", label: "principles", hint: "#principles", href: "#principles" },
     ...EXPERIENCES.map((e) => ({
       id: `go-${e.id}`,
@@ -44,7 +48,6 @@ function commands(articles: Article[]): Command[] {
       hint: `#${e.id}`,
       href: `#${e.id}`,
     })),
-    { id: "go-timeline", group: "go to", label: "timeline", hint: "#timeline", href: "#timeline" },
     { id: "go-writing", group: "go to", label: "writing", hint: "#writing", href: "#writing" },
     { id: "go-contact", group: "go to", label: "contact", hint: "#contact", href: "#contact" },
     { id: "copy-email", group: "contact", label: "copy email address", hint: profile.email, copy: profile.email },
@@ -72,10 +75,13 @@ function Nav({ commands }: { commands: Command[] }) {
           <i className="caret" aria-hidden />
         </a>
         <nav className="nav__links" aria-label="Sections">
+          <a href="#about">about</a>
+          <a data-drop href="#timeline">
+            timeline
+          </a>
           <a data-drop href="#principles">
             principles
           </a>
-          <a href="#timeline">timeline</a>
           <a data-drop href="#writing">
             writing
           </a>
@@ -96,13 +102,64 @@ function SectionHead({ name, children }: { name: string; children: React.ReactNo
   );
 }
 
+function About() {
+  return (
+    <section className="section" id="about">
+      <div className="shell">
+        <SectionHead name="about">
+          Hi, I&rsquo;m Steven.
+          <span> {profile.tagline}</span>
+        </SectionHead>
+
+        <div className="about">
+          <figure className="about__photo" data-reveal>
+            <img src="/me.jpg" alt="Steven Boyle" width={800} height={800} loading="lazy" decoding="async" />
+            <figcaption>
+              <span>~/me.jpg</span>
+              <span>{profile.location}</span>
+            </figcaption>
+          </figure>
+
+          <div className="about__copy" data-reveal>
+            <p>{profile.intro}</p>
+            <p>{profile.intro2}</p>
+
+            <dl className="about__facts">
+              <div>
+                <dt>now</dt>
+                <dd>Tech lead &amp; engineering manager at hedgehog lab · founder, HelloWorld Technologies</dd>
+              </div>
+              <div>
+                <dt>studied</dt>
+                <dd>
+                  {education.degree}, {education.school}
+                </dd>
+              </div>
+              <div>
+                <dt>off hours</dt>
+                <dd>
+                  <ul className="about__hobbies">
+                    {hobbies.map((h) => (
+                      <li key={h}>{h}</li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Principles() {
   return (
     <section className="section" id="principles">
       <div className="shell">
         <SectionHead name="principles">
           Good software is felt at every end of it.
-          <span> By the people building it, the agents working in it, and the people using it.</span>
+          <span> By the engineers building it, the agents working on it, and the users using it.</span>
         </SectionHead>
 
         <div className="panels">
@@ -143,7 +200,7 @@ function Career() {
       <div className="shell">
         <SectionHead name="timeline">
           From a computer science degree to leading teams.
-          <span> Newest first, like any good log.</span>
+          <span> Newest first.</span>
         </SectionHead>
         <Timeline />
       </div>
@@ -195,6 +252,8 @@ function Footer({ rev }: { rev: string }) {
           Building something?
           <span> Say hello.</span>
         </SectionHead>
+
+        <TraceMap />
 
         <a className="footer__command" href={`mailto:${profile.email}`}>
           <span>$ mail</span>
