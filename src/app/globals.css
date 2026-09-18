@@ -500,7 +500,7 @@ kbd {
   width: clamp(140px, 16vw, 184px);
 }
 
-/* The circular photo, with one agent orbiting it and cycling through the glow colours. */
+/* The circular photo, with one of the hero's robots flying loops around it. */
 .about__avatar {
   position: relative;
   display: block;
@@ -516,69 +516,14 @@ kbd {
   border-radius: 50%;
 }
 
-.about__orbit {
-  position: absolute;
-  inset: -16px;
-  animation: orbit 16s linear infinite;
-  pointer-events: none;
-}
-
 .about__bot {
+  /* Mirrors MARGIN in AvatarBot.tsx: room around the photo for the flight path. */
   position: absolute;
-  top: -9px;
-  left: 50%;
-  translate: -50% 0;
-  /* Counter-rotated so the robot stays upright as it circles, banking slightly. */
-  animation:
-    upright 16s linear infinite,
-    flash 4.8s steps(1) infinite;
-  overflow: visible;
-}
-
-.about__flame {
-  fill: #ff9e33;
-  opacity: 0.8;
-}
-
-@keyframes orbit {
-  to {
-    rotate: 360deg;
-  }
-}
-
-@keyframes upright {
-  from {
-    rotate: 12deg;
-  }
-  to {
-    rotate: -348deg;
-  }
-}
-
-@keyframes flash {
-  0% {
-    fill: var(--glow-1);
-    filter: drop-shadow(0 0 4px var(--glow-1));
-  }
-  25% {
-    fill: var(--glow-2);
-    filter: drop-shadow(0 0 4px var(--glow-2));
-  }
-  50% {
-    fill: var(--glow-3);
-    filter: drop-shadow(0 0 4px var(--glow-3));
-  }
-  75% {
-    fill: var(--glow-4);
-    filter: drop-shadow(0 0 4px var(--glow-4));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .about__orbit,
-  .about__bot {
-    animation: none;
-  }
+  inset: -34px;
+  width: calc(100% + 68px);
+  height: calc(100% + 68px);
+  max-width: none;
+  pointer-events: none;
 }
 
 .about__photo figcaption {

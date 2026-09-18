@@ -1,8 +1,8 @@
-// Agents as tiny flying robots — a boxy body with two eyes, an antenna, and a
-// flickering thruster underneath — tilting into the direction they fly. Tasks
-// are rings with a progress arc that fills while agents work on them, and a
-// pulse that starts small and swells outwards when one is done. Shapes are
-// signed distance fields in local pixel space, antialiased to one pixel.
+// Agents as tiny flying robots — a rounded head with a visor and glowing eyes,
+// ears, an antenna and a flickering thruster — banking into the direction they
+// fly. Tasks are rings with a progress arc that fills while agents work on
+// them, and a pulse that starts small and swells outwards when one is done.
+// Shapes are signed distance fields, antialiased to one pixel.
 
 struct View {
   // width, height (CSS px), robot height (px), time
@@ -25,13 +25,15 @@ struct Tasks {
 
 struct Varyings {
   @builtin(position) position: vec4f,
-  // Local position in pixels.
+  // Local position: robot units (a tenth of its height) for agents, pixels for tasks.
   @location(0) local: vec2f,
   @location(1) color: vec3f,
   @location(2) alpha: f32,
   @location(3) @interpolate(flat) index: u32,
   // Thruster strength, flickering per agent.
   @location(4) thrust: f32,
+  // Task colour and how much of it the agent has taken on.
+  @location(5) tint: vec4f,
 }
 
 fn cornerOf(vi: u32) -> vec2f {
@@ -56,7 +58,7 @@ fn vs_agents(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -
   let size = view.frame.z;
 
   // Robots stay upright and bank into their direction of travel.
-  let tilt = clamp(s.z * 0.012, -0.5, 0.5);
+  let tilt = clamp(s.z * 0.012, -0.45, 0.45);
   let c = cos(tilt);
   let sn = sin(tilt);
   let local = corner * size * 0.8;
@@ -66,11 +68,12 @@ fn vs_agents(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -
   // Empty slots collapse to nothing.
   out.position = select(vec4f(0.0), toClip(world), alive > 0.5);
   out.local = local / (size * 0.1);
-  out.color = mix(vec3f(0.55, 0.57, 0.66), tint.rgb * 1.2 + vec3f(0.05), smoothstep(0.0, 0.7, tint.w));
+  out.color = mix(vec3f(0.6, 0.63, 0.72), tint.rgb * 1.1 + vec3f(0.06), smoothstep(0.0, 0.7, tint.w));
+  out.tint = vec4f(tint.rgb, smoothstep(0.0, 0.7, tint.w));
   // Keep the name readable: idle agents fade out over the copy.
   let edge = max(max(view.copy.x - s.x, s.x - view.copy.z), max(view.copy.y - s.y, s.y - view.copy.w));
   let clear = mix(0.3, 1.0, smoothstep(-24.0, 12.0, edge));
-  out.alpha = (0.45 + 0.55 * tint.w) * mix(clear, 1.0, tint.w);
+  out.alpha = (0.5 + 0.5 * tint.w) * mix(clear, 1.0, tint.w);
   out.index = ii;
   out.thrust = 0.55 + 0.45 * sin(view.frame.w * 22.0 + f32(ii) * 1.7);
   return out;
@@ -87,34 +90,51 @@ fn segment(p: vec2f, a: vec2f, b: vec2f) -> f32 {
   return length(p - a - ab * t);
 }
 
-// A robot in a 10-unit-tall box, y down: body, eyes cut out, antenna on top.
-fn robot(p: vec2f) -> f32 {
-  var d = roundBox(p - vec2f(0.0, 0.6), vec2f(3.6, 2.9), 1.3);
-  d = min(d, segment(p, vec2f(0.0, -2.2), vec2f(0.0, -4.0)) - 0.45);
-  d = min(d, length(p - vec2f(0.0, -4.6)) - 0.95);
-  let eyes = min(length(p - vec2f(-1.35, 0.3)), length(p - vec2f(1.35, 0.3))) - 0.8;
-  return max(d, -eyes);
-}
-
-// The thruster: a short flame under the body.
+// The thruster: a flame tapering down from under the nozzle.
 fn flame(p: vec2f, length_: f32) -> f32 {
-  let q = vec2f(abs(p.x), p.y - 3.6);
-  let taper = mix(1.3, 0.0, clamp(q.y / length_, 0.0, 1.0));
+  let q = vec2f(abs(p.x), p.y - 4.5);
+  let taper = mix(1.1, 0.0, clamp(q.y / length_, 0.0, 1.0));
   return max(q.x - taper, max(-q.y, q.y - length_));
 }
 
+// Paints one shape over the colour so far (premultiplied).
+fn layer(acc: vec4f, d: f32, px: f32, color: vec3f) -> vec4f {
+  let cover = 1.0 - smoothstep(-0.5 * px, 0.5 * px, d);
+  return vec4f(mix(acc.rgb, color, cover), acc.a + (1.0 - acc.a) * cover);
+}
+
+// The robot, in a 10-unit-tall box with y down: a rounded head with a dark
+// visor and two glowing eyes, side ears, an antenna with a lit tip, and a
+// nozzle with a flickering flame underneath. Mirrored in strays.ts.
 @fragment
 fn fs_agents(in: Varyings) -> @location(0) vec4f {
-  // One local unit is a tenth of the robot's height; antialias over one pixel.
-  let px = fwidth(in.local.x);
-  let body = 1.0 - smoothstep(-0.5 * px, 0.5 * px, robot(in.local));
-  let fire = (1.0 - smoothstep(-0.5 * px, 0.5 * px, flame(in.local, 1.4 + in.thrust * 1.6))) * (1.0 - body);
+  let p = in.local;
+  let px = fwidth(p.x);
+  let m = vec2f(abs(p.x), p.y);
 
-  let fireColor = mix(vec3f(1.0, 0.62, 0.2), in.color, 0.35);
-  let a = body * in.alpha + fire * in.alpha * 0.8 * in.thrust;
-  if (a <= 0.0) { discard; }
-  let rgb = in.color * body * in.alpha + fireColor * fire * in.alpha * 0.8 * in.thrust;
-  return vec4f(rgb, a);
+  // Lit from above.
+  let shade = mix(1.18, 0.78, clamp((p.y + 2.6) / 6.2, 0.0, 1.0));
+  let body = in.color * shade;
+  let trim = in.color * 0.72;
+  let eye = mix(vec3f(0.78, 0.96, 1.0), in.tint.rgb * 1.3 + vec3f(0.25), in.tint.a);
+  let tip = mix(vec3f(1.0, 0.7, 0.3), in.tint.rgb * 1.3 + vec3f(0.2), in.tint.a);
+  let fire = mix(vec3f(1.0, 0.62, 0.2), in.tint.rgb, 0.35 * in.tint.a);
+
+  var acc = vec4f(0.0);
+  let burn = flame(p, 1.2 + in.thrust * 1.8);
+  acc = layer(acc, burn, px, fire);
+  acc = vec4f(acc.rgb, acc.a * (0.55 + 0.45 * in.thrust) * (1.0 - clamp((p.y - 4.5) / 3.0, 0.0, 1.0) * 0.6));
+  acc = layer(acc, roundBox(p - vec2f(0.0, 3.95), vec2f(1.4, 0.55), 0.4), px, trim);
+  acc = layer(acc, roundBox(m - vec2f(4.1, 0.5), vec2f(0.5, 1.1), 0.4), px, trim);
+  acc = layer(acc, segment(p, vec2f(0.0, -2.5), vec2f(0.0, -4.1)) - 0.3, px, trim);
+  acc = layer(acc, length(p - vec2f(0.0, -4.7)) - 0.8, px, tip);
+  acc = layer(acc, roundBox(p - vec2f(0.0, 0.5), vec2f(3.8, 3.1), 1.8), px, body);
+  acc = layer(acc, roundBox(p - vec2f(0.0, 0.2), vec2f(2.8, 1.3), 1.1), px, vec3f(0.05, 0.055, 0.07));
+  acc = layer(acc, roundBox(m - vec2f(1.35, 0.2), vec2f(0.55, 0.55), 0.45), px, eye);
+
+  let a = acc.a * in.alpha;
+  if (a <= 0.003) { discard; }
+  return vec4f(acc.rgb * a, a);
 }
 
 @vertex
@@ -130,6 +150,7 @@ fn vs_tasks(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) ->
   out.alpha = max(t.w, tasks.progress[ii].y);
   out.index = ii;
   out.thrust = 0.0;
+  out.tint = vec4f(0.0);
   return out;
 }
 

@@ -1,6 +1,7 @@
 import { Hero } from "@/components/Hero";
 import { Enhancements } from "@/components/Enhancements";
 import { GlowHeadings } from "@/components/GlowHeadings";
+import { AvatarBot } from "@/components/AvatarBot";
 import { CommandMenu, type Command } from "@/components/CommandMenu";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { Timeline } from "@/components/Timeline";
@@ -122,18 +123,7 @@ function About() {
           <figure className="about__photo" data-reveal>
             <span className="about__avatar">
               <img src="/me.jpg" alt="Steven Boyle" width={800} height={800} loading="lazy" decoding="async" />
-              {/* One of the hero's agents, keeping watch. */}
-              <span className="about__orbit" aria-hidden>
-                <svg className="about__bot" viewBox="-5 -6 10 13" width="14" height="18">
-                  <path className="about__flame" d="M-1.3 3.5 L1.3 3.5 L0 6.3 Z" />
-                  <path
-                    fillRule="evenodd"
-                    d="M-2.3 -2.3 H2.3 A1.3 1.3 0 0 1 3.6 -1 V2.2 A1.3 1.3 0 0 1 2.3 3.5 H-2.3 A1.3 1.3 0 0 1 -3.6 2.2 V-1 A1.3 1.3 0 0 1 -2.3 -2.3 Z M-1.35 -0.5 a0.8 0.8 0 1 0 0.01 0 Z M1.35 -0.5 a0.8 0.8 0 1 0 0.01 0 Z"
-                  />
-                  <rect x="-0.45" y="-4" width="0.9" height="1.8" />
-                  <circle cx="0" cy="-4.6" r="0.95" />
-                </svg>
-              </span>
+              <AvatarBot />
             </span>
             <figcaption>
               <span>~/me.jpg</span>

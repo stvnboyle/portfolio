@@ -5,6 +5,7 @@ import skyShader from "./sky.wgsl";
 import { PALETTE, type Rgb } from "./palette";
 import { onCopy, pointerIn, runScene, type StartScene } from "./scene";
 import { MAX_STRAYS, StrayLayer } from "./strays";
+import { seeded } from "./random";
 
 /** Mirrors the task array lengths in agents.wgsl and agents-render.wgsl. */
 const MAX_TASKS = 8;
@@ -23,6 +24,8 @@ const COUNTS_BYTES = 48;
 /** Bytes in the Exits struct: an atomic count, padded to 16, then four vec4s (two exits). */
 const EXITS_BYTES = 80;
 const MAX_EXITS = 2;
+/** Every fresh load plays out from the same seed, so the swarm goes the same way each time. */
+const SEED = 20260918;
 
 /** A task finishes in this many seconds with a full crew working it; slower with fewer. */
 const WORK_SECONDS = 8;
@@ -61,9 +64,10 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
     hero,
     callbacks,
     ({ gpu, surface: canvasSurface, small, calm, onCleanup }) => {
+      const random = seeded(SEED);
       const capacity = small ? 760 : 2400;
       // The population drifts around this, gently rising and falling over minutes.
-      const baseline = small ? 540 : 1650;
+      const baseline = small ? 440 : 1300;
       // The hero is the world; the canvas runs on below it over the page.
       const world = () => [hero.clientWidth, hero.clientHeight] as const;
       const canvasSize = () => [canvas.clientWidth, canvas.clientHeight] as const;
@@ -72,9 +76,9 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       const initial = new Float32Array(capacity * STRIDE * 4);
       for (let i = 0; i < capacity; i++) {
         const [w, h] = world();
-        const angle = Math.random() * Math.PI * 2;
+        const angle = random() * Math.PI * 2;
         const o = i * STRIDE * 4;
-        initial.set([Math.random() * w, Math.random() * h, Math.cos(angle) * 40, Math.sin(angle) * 40], o);
+        initial.set([random() * w, random() * h, Math.cos(angle) * 40, Math.sin(angle) * 40], o);
         initial.set([0.5, 0.52, 0.6, 0], o + 4);
         initial.set([i < baseline ? 1 : 0, -1, 0, 0], o + 8);
       }
@@ -106,7 +110,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         fade: 2.5,
         exitBudget,
         spawnBudget: spawn.budget,
-        seed: Math.random() * 100,
+        seed: (steps % 997) + 0.5,
         world: world(),
         apron: apron(),
         spawnAt: spawn.at,
@@ -116,6 +120,9 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       let tasks: Array<Task | null> = Array.from({ length: MAX_TASKS }, () => null);
       const handoffs: Handoff[] = Array.from({ length: MAX_TASKS }, () => null);
       let elapsed = 0;
+      // Simulation steps taken so far; also seeds the shader's per-step randomness.
+      let steps = 0;
+      let simTime = 0;
 
       const strength = (t: Task | null) => (!t || t.closed ? 0 : Math.min(1, t.age * 1.5));
       const taskValues = () => ({
@@ -145,8 +152,8 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       measureCopy();
       canvasSurface.onResize(measureCopy);
 
-      // Robots are 12px tall.
-      const view = (t: number) => ({ frame: [...canvasSize(), 12, t], copy: copyBox });
+      // Robots are 15px tall.
+      const view = (t: number) => ({ frame: [...canvasSize(), 15, t], copy: copyBox });
       const renderTasks = () => {
         const { at, tint } = taskValues();
         return {
@@ -187,7 +194,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       // Labels live in the hero's overlay layer, next to each ring.
       const overlay = hero.querySelector<HTMLElement>(".hero__overlay");
       let nextId = 1;
-      let colorIndex = Math.floor(Math.random() * PALETTE.length);
+      let colorIndex = 0;
       let completed = 0;
 
       const labelText = (t: Task) => {
@@ -211,17 +218,19 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         if (x > world()[0] - 240) label.dataset.side = "left";
         label.style.cssText = `left:${x}px;top:${y}px;--tone:rgb(${color.map((c) => Math.round(c * 255)).join(" ")})`;
         overlay?.append(label);
-        const task: Task = { id: nextId++, x, y, radius: 16 + Math.random() * 6, color, age: 0, progress: 0, workers: 0, closed: null, burst: 0, label };
+        const task: Task = { id: nextId++, x, y, radius: 16 + random() * 6, color, age: 0, progress: 0, workers: 0, closed: null, burst: 0, label };
         label.textContent = labelText(task);
         tasks[slot] = task;
       };
       // Somewhere clear of the copy in the top left.
       const postRandom = () => {
         const [w, h] = world();
-        for (let tries = 0; tries < 12; tries++) {
-          const x = w * (0.1 + Math.random() * 0.8);
-          const y = h * (small ? 0.55 + Math.random() * 0.25 : 0.2 + Math.random() * 0.58);
+        for (let tries = 0; tries < 24; tries++) {
+          const x = w * (0.1 + random() * 0.8);
+          const y = h * (small ? 0.55 + random() * 0.25 : 0.2 + random() * 0.58);
           if (!small && x < w * 0.55 && y < h * 0.6) continue;
+          // Keep clear of other open tasks, so rings and labels don't overlap.
+          if (tasks.some((t) => t && !t.closed && Math.hypot(t.x - x, t.y - y) < (small ? 140 : 260))) continue;
           return post(x, y);
         }
       };
@@ -231,7 +240,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         if (!open.length) return;
         const distance = (t: Task) => Math.hypot(t.x - from.x, t.y - from.y);
         const to = open.reduce((a, b) => (distance(a) < distance(b) ? a : b));
-        handoffs[slot] = { to, until: elapsed + HANDOFF_SECONDS };
+        handoffs[slot] = { to, until: simTime + HANDOFF_SECONDS };
       };
 
       /* --- population ----------------------------------------------------- */
@@ -243,7 +252,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       /* --- strays --------------------------------------------------------- */
 
-      const strays = new StrayLayer();
+      const strays = new StrayLayer(seeded(SEED + 1));
       let reading = false;
       let lastRead = 0;
 
@@ -316,6 +325,74 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       let accumulator = 0;
       let nextPost = 1.5;
+
+      /** One fixed step: schedule tasks, squads and exits, then advance the swarm on the GPU. */
+      const simulate = (h: number) => {
+        steps++;
+        simTime += h;
+
+        nextPost -= h;
+        if (nextPost <= 0) {
+          const open = tasks.filter((t) => t && !t.closed).length;
+          if (!calm && open < (small ? 2 : 4)) postRandom();
+          nextPost = 2 + random() * 2;
+        }
+
+        // Progress comes from agents actually on the task, as counted on the GPU.
+        tasks = tasks.map((t, slot) => {
+          if (!t) return null;
+          t.age += h;
+          if (!t.closed) {
+            t.progress = Math.min(1, t.progress + (h * Math.min(t.workers, FULL_CREW)) / (FULL_CREW * WORK_SECONDS));
+            if (t.progress >= 1) {
+              t.closed = "done";
+              completed++;
+              handOff(slot, t);
+            } else if (t.age > ABANDON_AFTER && t.progress < 0.05) {
+              t.closed = "dropped";
+            }
+          } else {
+            t.burst += h / 1.4;
+          }
+          if (t.burst < 1) return t;
+          t.label.remove();
+          return null;
+        });
+        // Handoffs end on time, or when the task they were heading for closes.
+        handoffs.forEach((ho, i) => {
+          if (ho && (simTime > ho.until || ho.to.closed)) handoffs[i] = null;
+        });
+
+        // New squads arrive from the top or the sides while the population is below target.
+        nextSquad -= h;
+        const target = baseline * (1 + 0.12 * Math.sin(simTime / 45));
+        if (nextSquad <= 0) {
+          nextSquad = 1.5 + random() * 2.5;
+          if (!calm && alive < target) {
+            const [w, wh] = world();
+            const side = random() < 0.5 ? 0 : random() < 0.5 ? 1 : 2;
+            spawn = {
+              budget: Math.min(capacity - alive - leaving, Math.round(14 + random() * 18 + (target - alive) * 0.15)),
+              at: [w * (0.1 + random() * 0.8), wh * (0.15 + random() * 0.6), side, 0],
+            };
+          }
+        }
+
+        // Now and then let one out of the bottom, if the page has room for another stray.
+        nextLeave -= h;
+        if (nextLeave <= 0 && strays.count + leaving < MAX_STRAYS) {
+          gate.write(new Uint32Array([0]));
+          nextLeave = 0.8 + random() * 1.2;
+        }
+        exitBudget = strays.count < MAX_STRAYS ? MAX_EXITS : 0;
+
+        counts.write(noCounts);
+        swarm.set({ swarm: swarmValues(), tasks: taskValues(), current: state.read, next: state.write });
+        swarm.dispatch(Math.ceil(capacity / 64));
+        state.swap();
+        // A squad arrives in a single step.
+        spawn = { budget: 0, at: spawn.at };
+      };
       let sinceMeasure = 0;
 
       return {
@@ -332,73 +409,13 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             measureCopy();
           }
 
-          nextPost -= dt;
-          if (nextPost <= 0) {
-            const open = tasks.filter((t) => t && !t.closed).length;
-            if (!calm && open < (small ? 2 : 4)) postRandom();
-            nextPost = 2 + Math.random() * 2;
-          }
-
-          // Progress comes from agents actually on the task, as counted on the GPU.
-          tasks = tasks.map((t, slot) => {
-            if (!t) return null;
-            t.age += dt;
-            if (!t.closed) {
-              t.progress = Math.min(1, t.progress + (dt * Math.min(t.workers, FULL_CREW)) / (FULL_CREW * WORK_SECONDS));
-              if (t.progress >= 1) {
-                t.closed = "done";
-                completed++;
-                handOff(slot, t);
-              } else if (t.age > ABANDON_AFTER && t.progress < 0.05) {
-                t.closed = "dropped";
-              }
-            } else {
-              t.burst += dt / 1.4;
-            }
-            t.label.textContent = labelText(t);
-            t.label.style.opacity = String(Math.min(1, t.age * 1.5) * (1 - Math.min(1, t.burst * 1.5)));
-            if (t.burst < 1) return t;
-            t.label.remove();
-            return null;
-          });
-          // Handoffs end on time, or when the task they were heading for closes.
-          handoffs.forEach((h, i) => {
-            if (h && (elapsed > h.until || h.to.closed)) handoffs[i] = null;
-          });
-
-          // New squads arrive from the top or the sides while the population is below target.
-          nextSquad -= dt;
-          const target = baseline * (1 + 0.12 * Math.sin(elapsed / 45));
-          if (nextSquad <= 0) {
-            nextSquad = 1.5 + Math.random() * 2.5;
-            if (!calm && alive < target) {
-              const [w, h] = world();
-              const side = Math.random() < 0.5 ? 0 : Math.random() < 0.5 ? 1 : 2;
-              spawn = {
-                budget: Math.min(capacity - alive - leaving, Math.round(14 + Math.random() * 18 + (target - alive) * 0.15)),
-                at: [w * (0.1 + Math.random() * 0.8), h * (0.15 + Math.random() * 0.6), side, 0],
-              };
-            }
-          }
-
-          // Now and then let one out of the bottom, if the page has room for another stray.
-          nextLeave -= dt;
-          if (nextLeave <= 0 && strays.count + leaving < MAX_STRAYS) {
-            gate.write(new Uint32Array([0]));
-            nextLeave = 0.8 + Math.random() * 1.2;
-          }
-          exitBudget = strays.count < MAX_STRAYS ? MAX_EXITS : 0;
-
           pointer.presence += (pointer.target - pointer.presence) * (1 - Math.exp(-realDt * 6));
+          // Everything that decides where the swarm goes runs on the fixed simulation
+          // clock, so a fresh load with the same seed plays out the same way.
           accumulator += dt;
           for (let n = 0; accumulator >= 1 / SIM_HZ && n < 2; n++) {
             accumulator -= 1 / SIM_HZ;
-            counts.write(noCounts);
-            swarm.set({ swarm: swarmValues(), tasks: taskValues(), current: state.read, next: state.write });
-            swarm.dispatch(Math.ceil(capacity / 64));
-            state.swap();
-            // A squad arrives in a single step.
-            spawn = { budget: 0, at: spawn.at };
+            simulate(1 / SIM_HZ);
           }
           if (accumulator > 1 / SIM_HZ) accumulator = 0;
 
@@ -406,6 +423,12 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           if (!reading && now - lastRead > READBACK_MS) {
             lastRead = now;
             readBack();
+          }
+
+          for (const t of tasks) {
+            if (!t) continue;
+            t.label.textContent = labelText(t);
+            t.label.style.opacity = String(Math.min(1, t.age * 1.5) * (1 - Math.min(1, t.burst * 1.5)));
           }
 
           const bound = { view: view(elapsed), agents: state.read, tasks: renderTasks() };
