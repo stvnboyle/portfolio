@@ -5,6 +5,8 @@
 struct View {
   // width, height (CSS px), chevron length (px), time
   frame: vec4f,
+  // The hero copy's box (x0, y0, x1, y1, CSS px): idle agents dim as they cross it.
+  copy: vec4f,
 }
 
 // x, y (px), working radius (px), strength (0..1)
@@ -58,7 +60,10 @@ fn vs_agents(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -
   out.position = toClip(world);
   out.local = local;
   out.color = mix(vec3f(0.5, 0.52, 0.6), tint.rgb * 1.2 + vec3f(0.05), smoothstep(0.0, 0.7, tint.w));
-  out.alpha = 0.38 + 0.62 * tint.w;
+  // Keep the name and tagline readable: idle agents fade out over the copy.
+  let edge = max(max(view.copy.x - s.x, s.x - view.copy.z), max(view.copy.y - s.y, s.y - view.copy.w));
+  let clear = mix(0.3, 1.0, smoothstep(-24.0, 12.0, edge));
+  out.alpha = (0.38 + 0.62 * tint.w) * mix(clear, 1.0, tint.w);
   out.index = ii;
   return out;
 }

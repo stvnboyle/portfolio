@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import type { SceneStats, StartScene } from "@/gfx/scene";
 import { startSignalField } from "@/gfx/signal";
 import { startAgents } from "@/gfx/agents";
-import { startDeps } from "@/gfx/deps";
-import { startSort } from "@/gfx/sort";
 import { SCENES, SCENE_EVENT, type SceneId } from "@/data/scenes";
 import { profile } from "@/data/profile";
 
@@ -14,8 +12,6 @@ type FieldState = { kind: "starting" } | { kind: "live"; status: SceneStats | nu
 const START: Record<SceneId, StartScene> = {
   signal: startSignalField,
   agents: startAgents,
-  deps: startDeps,
-  sort: startSort,
 };
 
 /** What each scene computes, as it's actually implemented. */
@@ -26,8 +22,6 @@ const EQUATIONS: Record<SceneId, React.ReactNode> = {
     </>
   ),
   agents: <>vᵢ += a·sepᵢ + b·alignᵢ + c·cohᵢ + d·(tₖ − xᵢ)</>,
-  deps: <>Fᵢ = Σⱼ q·r̂ᵢⱼ/rᵢⱼ² − Σ₍ᵢ,ⱼ₎∈E κ(rᵢⱼ − ℓ)·r̂ᵢⱼ</>,
-  sort: <>aᵢ ⇄ aᵢ⊕ⱼ if (aᵢ &gt; aᵢ⊕ⱼ) = (i ∧ k = 0)</>,
 };
 
 const STORAGE_KEY = "hero-scene";
@@ -84,6 +78,8 @@ export function Hero() {
     <section className="hero" id="top" ref={heroRef} data-field={field.kind}>
       {/* A fresh canvas per scene, so each one gets a clean context. */}
       <canvas key={scene.id} ref={canvasRef} className="hero__canvas" aria-hidden />
+      {/* Scenes can pin small labels over the canvas here. */}
+      <div className="hero__overlay" aria-hidden />
 
       <div className="shell hero__inner">
         <p className="hero__eyebrow">{profile.roles.join(" · ")}</p>

@@ -297,6 +297,36 @@ kbd {
   mask: linear-gradient(to bottom, transparent, #000 25%, #000 60%, transparent);
 }
 
+.hero__overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* A task's live label, pinned just right of its ring. */
+.task-label {
+  position: absolute;
+  /* Clear of the orbit the agents circle at. */
+  transform: translate(84px, -50%);
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--tone) 80%, var(--fg));
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 10px var(--bg), 0 0 3px var(--bg);
+  transition: opacity 0.3s var(--ease);
+}
+
+/* Agents that have left the hero, wandering down the page. */
+.strays {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 /* The empty space passes through to the field; the text itself stays selectable. */
 .hero__inner {
   padding-top: calc(var(--nav-h) + clamp(44px, 13vh, 140px));

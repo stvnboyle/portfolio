@@ -2,6 +2,9 @@
 // (separation, alignment, cohesion), picks up nearby tasks and circles them
 // while it works, and takes on the task's colour. State is two vec4s per
 // agent: [2i] position.xy, velocity.xy (CSS px); [2i + 1] tint rgb, tint weight.
+//
+// Two small buffers report back to the CPU: how many agents are working each
+// task this step, and the agent (if any) let out through the bottom edge.
 
 struct Swarm {
   count: u32,
@@ -15,6 +18,8 @@ struct Swarm {
   maxSpeed: f32,
   // Seconds for a tint to fade once an agent is off task.
   fade: f32,
+  // How many agents may leave through the bottom edge this step (0 or 1).
+  exitBudget: u32,
   // Width, height of the world (px).
   world: vec2f,
   // Pointer x, y (px) and presence (0..1).
@@ -27,10 +32,19 @@ struct Tasks {
   tint: array<vec4f, 8>,
 }
 
+struct Exits {
+  // Agents that tried to leave; only the first `exitBudget` are recorded.
+  count: atomic<u32>,
+  // Per exit: x, -, velocity.xy; then tint rgb, weight.
+  items: array<vec4f, 2>,
+}
+
 @group(0) @binding(0) var<uniform> swarm: Swarm;
 @group(0) @binding(1) var<uniform> tasks: Tasks;
 @group(0) @binding(2) var<storage, read> current: array<vec4f>;
 @group(0) @binding(3) var<storage, read_write> next: array<vec4f>;
+@group(0) @binding(4) var<storage, read_write> workers: array<atomic<u32>, 8>;
+@group(0) @binding(5) var<storage, read_write> exits: Exits;
 
 // Shortest offset from a to b on the wrapping world.
 fn wrapped(a: vec2f, b: vec2f) -> vec2f {
@@ -76,7 +90,7 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
     let t = tasks.at[k];
     if (t.w <= 0.0) { continue; }
     let d = length(wrapped(p, t.xy));
-    if (d < t.z * 5.0 && d < bestD) { bestD = d; best = i32(k); }
+    if (d < t.z * 9.0 && d < bestD) { bestD = d; best = i32(k); }
   }
   var working = 0.0;
   if (best >= 0) {
@@ -87,8 +101,11 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
     let around = vec2f(-toward.y, toward.x);
     // Pulled onto an orbit at the task's working radius, moving round it.
     steer += (toward * (r - t.z) * 1.4 + around * swarm.maxSpeed * 1.2 - v) * t.w * 1.6;
-    working = t.w * (1.0 - smoothstep(t.z * 1.5, t.z * 4.0, r));
+    // Agents settle into an orbit about three task radii out, where the pull
+    // balances their speed; anyone in that band is working the task.
+    working = t.w * (1.0 - smoothstep(t.z * 3.2, t.z * 4.2, r));
     tint = vec4f(mix(tint.rgb, tasks.tint[best].rgb, min(1.0, working * swarm.dt * 4.0)), tint.w);
+    if (r < t.z * 4.2) { atomicAdd(&workers[best], 1u); }
   }
 
   // The pointer draws curious agents in, without holding them.
@@ -100,9 +117,21 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
   let speed = length(v);
   v = v / max(speed, 1e-3) * clamp(speed, swarm.minSpeed, swarm.maxSpeed);
   var np = p + v * swarm.dt;
-  np -= swarm.world * floor(np / swarm.world);
 
   tint.w = max(working, tint.w - swarm.dt / swarm.fade);
+
+  // Leaving through the bottom: if the gate is open, this agent carries on down
+  // the page (the CPU picks it up) and a fresh one enters at the top.
+  if (np.y >= swarm.world.y && swarm.exitBudget > 0u) {
+    let slot = atomicAdd(&exits.count, 1u);
+    if (slot < swarm.exitBudget) {
+      exits.items[0] = vec4f(np.x, 0.0, v);
+      exits.items[1] = tint;
+      tint = vec4f(tint.rgb, 0.0);
+    }
+  }
+  np -= swarm.world * floor(np / swarm.world);
+
   next[2u * i] = vec4f(np, v);
   next[2u * i + 1u] = tint;
 }
