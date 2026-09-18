@@ -1,11 +1,11 @@
-// The environment around the grid: a slate sky that deepens upwards, a
-// horizon glow and soft aurora curtains tinted by whatever packets are live,
-// and a faint sheen on the floor beneath them.
+// The hero's backdrop: a slate sky that deepens upwards, a horizon glow and
+// soft aurora curtains tinted by whatever tasks are open. The canvas runs on
+// below the hero so agents can leave it; below the hero's edge it's clear.
 
 struct Sky {
-  // horizon (uv y, top-origin), aspect, time, -
+  // horizon (0..1 of the hero), aspect, time, where the hero ends (uv y)
   frame: vec4f,
-  // rgb of the live packets, how much is going on (0..1)
+  // rgb of the open tasks, how much is going on (0..1)
   tint: vec4f,
 }
 
@@ -42,6 +42,9 @@ fn fbm(p: vec2f) -> f32 {
 
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
+  if (uv.y > sky.frame.w) { return vec4f(0.0); }
+  // Measure everything within the hero, not the whole canvas.
+  let v = uv.y / sky.frame.w;
   let horizon = sky.frame.x;
   let aspect = sky.frame.y;
   let t = sky.frame.z;
@@ -50,12 +53,12 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
 
   let page = vec3f(0.039, 0.039, 0.043);
   // Distance above the horizon, in screen heights (negative below it).
-  let above = horizon - uv.y;
+  let above = horizon - v;
 
   // Sky: a lifted slate at the horizon, settling back to the page colour.
   var col = mix(vec3f(0.075, 0.082, 0.11), page, smoothstep(-0.05, 0.6, above));
 
-  // Horizon glow, tinted by live packets and breathing with how many there are.
+  // Horizon glow, tinted by open tasks and breathing with how many there are.
   let band = exp(-abs(above) * 10.0);
   col += tint * band * (0.07 + 0.18 * activity);
 
@@ -67,12 +70,12 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let auroraColor = mix(vec3f(0.35, 0.45, 0.95), tint, 0.55);
   col += auroraColor * curtain * reach * (0.09 + 0.06 * activity);
 
-  // A faint sheen on the floor, as if the glow reflects off the plane.
+  // A faint sheen on the floor, below the horizon.
   let below = max(-above, 0.0);
   col += tint * exp(-below * 5.0) * (0.03 + 0.05 * activity) * smoothstep(0.0, 0.05, below);
 
   // Hand back to the page colour at the bottom edge.
-  col = mix(col, page, smoothstep(0.7, 1.0, uv.y));
+  col = mix(col, page, smoothstep(0.7, 1.0, v));
 
   // Dither so the long, dark gradients don't band.
   col += (hash(uv * vec2f(1733.0, 977.0) + t) - 0.5) / 255.0;

@@ -263,18 +263,21 @@ kbd {
    =========================================================================== */
 
 .hero {
+  /* How far the swarm's canvas runs on below the hero, so agents can leave it. */
+  --apron: 40svh;
   position: relative;
   min-height: 100svh;
   isolation: isolate;
-  overflow: hidden;
+  overflow-x: clip;
 }
 
 .hero__canvas {
   position: absolute;
-  inset: 0;
+  inset: 0 0 auto;
   z-index: -1;
   width: 100%;
-  height: 100%;
+  height: calc(100% + var(--apron));
+  pointer-events: none;
   opacity: 0;
   transition: opacity 2s var(--ease);
   touch-action: pan-y;
@@ -391,38 +394,6 @@ kbd {
   color: var(--fg-dim);
 }
 
-.hud__scenes {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: var(--text-xs);
-  color: var(--fg-dim);
-  pointer-events: auto;
-}
-
-.hud__scenes span {
-  min-width: 22ch;
-  text-align: center;
-}
-
-.hud__scenes button {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm);
-  color: var(--fg);
-  background: rgb(10 10 11 / 0.6);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-  cursor: pointer;
-  transition: box-shadow 0.2s var(--ease);
-}
-
-.hud__scenes button:hover {
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35);
-}
-
 .hud__equation .hud__formula {
   font-size: inherit;
   color: inherit;
@@ -483,69 +454,72 @@ kbd {
   letter-spacing: -0.04em;
 }
 
-.section__title > span:not([data-g]) {
+.section__title > span:not(.glow-word) {
   color: var(--fg-muted);
 }
 
 /* --- glowing headings ----------------------------------------------------- */
 
-/* Letters light up in the agents' colours under the pointer, then settle back. */
+.glow-word {
+  white-space: nowrap;
+}
+
+/* Letters light up in the agents' colours under the pointer, then settle back.
+   --mix snaps to full colour quickly so lit letters read as colour, not tint. */
 [data-g] {
   --heat: 0;
-  color: color-mix(in srgb, var(--glow, currentColor) calc(var(--heat) * 100%), currentColor);
+  --mix: 0;
+  display: inline-block;
+  color: color-mix(in srgb, var(--glow, currentColor) calc(var(--mix) * 100%), currentColor);
+  transform: translateY(calc(var(--heat) * -2px));
   text-shadow:
-    0 0 calc(var(--heat) * 14px) color-mix(in srgb, var(--glow, transparent) calc(var(--heat) * 85%), transparent),
-    0 0 calc(var(--heat) * 34px) color-mix(in srgb, var(--glow, transparent) calc(var(--heat) * 45%), transparent);
+    0 0 1px color-mix(in srgb, var(--glow, transparent) calc(var(--mix) * 100%), transparent),
+    0 0 calc(var(--heat) * 7px) color-mix(in srgb, var(--glow, transparent) calc(var(--heat) * 75%), transparent),
+    0 0 calc(var(--heat) * 18px) color-mix(in srgb, var(--glow, transparent) calc(var(--heat) * 30%), transparent);
 }
 
 /* --- about --------------------------------------------------------------- */
 
 .about {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: clamp(28px, 5vw, 64px);
   align-items: start;
 }
 
 .about__photo {
-  position: relative;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  overflow: hidden;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: clamp(140px, 16vw, 184px);
 }
 
-/* A thin burst of the palette around the frame, drawn over the photo. */
-.about__photo::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, #2a7aff, #9450ff 40%, #ff3d99 70%, var(--line) 100%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0.7;
-  pointer-events: none;
+/* A thin ring of the palette around a circular photo. */
+.about__ring {
+  display: block;
+  width: 100%;
+  padding: 2px;
+  border-radius: 50%;
+  background: conic-gradient(from 200deg, #2a7aff, #9450ff, #ff3d99, #ff9e1f, #1aebd1, #2a7aff);
 }
 
-.about__photo img {
+.about__ring img {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 1;
   object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid var(--bg);
 }
 
 .about__photo figcaption {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
   font-size: var(--text-xs);
   color: var(--fg-muted);
-  box-shadow: inset 0 1px 0 var(--line);
+  text-align: center;
 }
 
 .about__copy {
@@ -597,7 +571,14 @@ kbd {
   }
 
   .about__photo {
-    max-width: 360px;
+    justify-items: start;
+    width: 132px;
+  }
+
+  .about__photo figcaption {
+    justify-items: start;
+    text-align: left;
+    white-space: nowrap;
   }
 
   .about__facts > div {

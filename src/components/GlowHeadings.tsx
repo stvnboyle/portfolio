@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { PALETTE } from "@/gfx/packets";
+import { PALETTE } from "@/gfx/palette";
 
 const SELECTOR = ".hero__name, .section__title";
 /** Seconds for a lit letter to settle back. */
@@ -9,7 +9,11 @@ const SETTLE = 0.9;
 
 type Glyph = { el: HTMLElement; heat: number; index: number };
 
-/** Wraps each non-space character under `root` in its own span, keeping any child elements. */
+/**
+ * Wraps each non-space character under `root` in its own span, keeping any
+ * child elements. Letters are grouped into unbreakable words, since each
+ * letter is its own inline block and lines could otherwise break mid-word.
+ */
 function split(root: Element, glyphs: Glyph[]) {
   for (const node of [...root.childNodes]) {
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -18,16 +22,22 @@ function split(root: Element, glyphs: Glyph[]) {
     }
     if (node.nodeType !== Node.TEXT_NODE || !node.textContent) continue;
     const fragment = document.createDocumentFragment();
-    for (const char of node.textContent) {
-      if (/\s/.test(char)) {
-        fragment.append(char);
+    for (const part of node.textContent.split(/(\s+)/)) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) {
+        fragment.append(part);
         continue;
       }
-      const span = document.createElement("span");
-      span.dataset.g = "";
-      span.textContent = char;
-      fragment.append(span);
-      glyphs.push({ el: span, heat: 0, index: glyphs.length });
+      const word = document.createElement("span");
+      word.className = "glow-word";
+      for (const char of part) {
+        const span = document.createElement("span");
+        span.dataset.g = "";
+        span.textContent = char;
+        word.append(span);
+        glyphs.push({ el: span, heat: 0, index: glyphs.length });
+      }
+      fragment.append(word);
     }
     node.replaceWith(fragment);
   }
@@ -39,7 +49,7 @@ function paletteAt(t: number) {
   const i = Math.floor(t) % n;
   const f = t - Math.floor(t);
   const [a, b] = [PALETTE[i], PALETTE[(i + 1) % n]];
-  return `rgb(${a.map((v, k) => Math.round(Math.min(1, (v + (b[k] - v) * f) * 1.1) * 255)).join(" ")})`;
+  return `rgb(${a.map((v, k) => Math.round(Math.min(1, v + (b[k] - v) * f) * 255)).join(" ")})`;
 }
 
 /**
@@ -66,7 +76,7 @@ export function GlowHeadings() {
       let active = Boolean(pointer);
       for (const heading of headings) {
         const size = parseFloat(getComputedStyle(heading.el).fontSize) || 16;
-        const reach = size * 1.8;
+        const reach = size * 1.5;
         for (const g of heading.glyphs) {
           let heat = g.heat * Math.exp(-dt / (SETTLE / 3));
           if (pointer && pointer.heading === heading) {
@@ -76,10 +86,12 @@ export function GlowHeadings() {
             heat = Math.max(heat, near * near * (3 - 2 * near));
           }
           // Colour is chosen as a letter lights up, and kept while it glows.
-          if (g.heat < 0.02 && heat >= 0.02) g.el.style.setProperty("--glow", paletteAt(hue + g.index * 0.12));
+          if (g.heat < 0.02 && heat >= 0.02) g.el.style.setProperty("--glow", paletteAt(hue + g.index * 0.22));
           if (Math.abs(heat - g.heat) > 0.002 || (heat < 0.002 && g.heat > 0)) {
             g.heat = heat < 0.002 ? 0 : heat;
             g.el.style.setProperty("--heat", g.heat.toFixed(3));
+            // Colour arrives almost at once; the glow and lift follow the heat.
+            g.el.style.setProperty("--mix", Math.min(1, g.heat * 2.5).toFixed(3));
           }
           if (g.heat > 0) active = true;
         }

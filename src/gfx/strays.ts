@@ -14,11 +14,11 @@ type Stray = {
 };
 
 /** At most this many agents wander the page at once. */
-export const MAX_STRAYS = 3;
+export const MAX_STRAYS = 5;
 /** Drift down the page, in px/s. */
 const DRIFT = 26;
 const SPEED = 34;
-const LIFE = 70;
+const LIFE = 60;
 const GREY: Rgb = [0.5, 0.52, 0.6];
 
 /**

@@ -8,7 +8,6 @@ import { TimelineLight } from "@/components/TimelineLight";
 import { getArticles, type Article } from "@/data/articles";
 import { getBuildInfo } from "@/data/build";
 import { EXPERIENCES } from "@/data/experiences";
-import { SCENES, SCENE_EVENT } from "@/data/scenes";
 import { education, hobbies, profile } from "@/data/profile";
 
 export default async function Page() {
@@ -53,14 +52,6 @@ function commands(articles: Article[]): Command[] {
     })),
     { id: "go-writing", group: "go to", label: "writing", hint: "#writing", href: "#writing" },
     { id: "go-contact", group: "go to", label: "contact", hint: "#contact", href: "#contact" },
-    ...SCENES.map((scene) => ({
-      id: `scene-${scene.id}`,
-      group: "hero",
-      label: `show ${scene.name}`,
-      hint: "scene",
-      event: SCENE_EVENT,
-      detail: scene.id,
-    })),
     { id: "copy-email", group: "contact", label: "copy email address", hint: profile.email, copy: profile.email },
     { id: "email", group: "contact", label: "send an email", hint: "mailto", href: `mailto:${profile.email}` },
     { id: "linkedin", group: "elsewhere", label: "linkedin", hint: host(profile.links.linkedin), href: profile.links.linkedin, external: true },
@@ -124,7 +115,9 @@ function About() {
 
         <div className="about">
           <figure className="about__photo" data-reveal>
-            <img src="/me.jpg" alt="Steven Boyle" width={800} height={800} loading="lazy" decoding="async" />
+            <span className="about__ring">
+              <img src="/me.jpg" alt="Steven Boyle" width={800} height={800} loading="lazy" decoding="async" />
+            </span>
             <figcaption>
               <span>~/me.jpg</span>
               <span>{profile.location}</span>

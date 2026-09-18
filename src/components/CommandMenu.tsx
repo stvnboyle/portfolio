@@ -8,12 +8,7 @@ export type Command = {
   label: string;
   /** Short right-aligned detail, e.g. a domain or shortcut. */
   hint?: string;
-} & (
-  | { href: string; external?: boolean }
-  | { copy: string }
-  /** Dispatched on window as a CustomEvent, for islands that listen for it. */
-  | { event: string; detail?: string }
-);
+} & ({ href: string; external?: boolean } | { copy: string });
 
 /**
  * A ⌘K palette: the site's one nod to the command line. Built on <dialog> so
@@ -71,10 +66,6 @@ export function CommandMenu({ commands }: { commands: Command[] }) {
       return;
     }
     close();
-    if ("event" in command) {
-      window.dispatchEvent(new CustomEvent(command.event, { detail: command.detail }));
-      return;
-    }
     if (command.external) window.open(command.href, "_blank", "noopener,noreferrer");
     else window.location.href = command.href;
   };
