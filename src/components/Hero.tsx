@@ -39,13 +39,6 @@ export function Hero() {
       <div className="shell hero__inner">
         <p className="hero__eyebrow">{profile.roles.join(" · ")}</p>
         <h1 className="hero__name">{profile.name}</h1>
-        <p className="hero__tagline">
-          Tech lead &amp; engineering manager at hedgehog lab, and founder of{" "}
-          <a className="link" href={profile.links.gitgood} target="_blank" rel="noreferrer">
-            gitgood.io
-          </a>
-          . Based in Newcastle.
-        </p>
       </div>
 
       <div className="shell hero__hud" aria-hidden>

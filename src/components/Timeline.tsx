@@ -43,7 +43,6 @@ export function Timeline() {
 
       {TIMELINE.map((event, i) => {
         const lane = LANES.find((l) => l.id === event.lane)!;
-        const hasMore = Boolean(event.points?.length || event.engagements?.length);
         return (
           <li
             key={event.id}
@@ -71,30 +70,6 @@ export function Timeline() {
                 </span>
               </h3>
               {event.summary && <p className="commit__summary">{event.summary}</p>}
-
-              {hasMore && (
-                <details className="commit__more">
-                  <summary>show details</summary>
-                  {event.points && (
-                    <ul className="commit__points">
-                      {event.points.map((p) => (
-                        <li key={p}>{p}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {event.engagements && (
-                    <div className="commit__engagements">
-                      {event.engagements.map((e) => (
-                        <div key={e.name}>
-                          <p className="commit__engagement">{e.name}</p>
-                          <p>{e.summary}</p>
-                          <p className="commit__stack">{e.stack.join(" / ")}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </details>
-              )}
 
               {event.stack && <p className="commit__stack">{event.stack.join(" / ")}</p>}
             </div>

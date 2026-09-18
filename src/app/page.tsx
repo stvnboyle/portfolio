@@ -8,6 +8,7 @@ import { TimelineLight } from "@/components/TimelineLight";
 import { getArticles, type Article } from "@/data/articles";
 import { getBuildInfo } from "@/data/build";
 import { EXPERIENCES } from "@/data/experiences";
+import { PROJECTS } from "@/data/projects";
 import { education, hobbies, profile } from "@/data/profile";
 
 export default async function Page() {
@@ -25,6 +26,7 @@ export default async function Page() {
         <Hero />
         <About />
         <Career />
+        <Projects />
         <Principles />
         <Writing articles={articles} />
       </main>
@@ -42,6 +44,7 @@ function commands(articles: Article[]): Command[] {
   return [
     { id: "go-about", group: "go to", label: "about", hint: "#about", href: "#about" },
     { id: "go-timeline", group: "go to", label: "timeline", hint: "#timeline", href: "#timeline" },
+    { id: "go-projects", group: "go to", label: "projects", hint: "#projects", href: "#projects" },
     { id: "go-principles", group: "go to", label: "principles", hint: "#principles", href: "#principles" },
     ...EXPERIENCES.map((e) => ({
       id: `go-${e.id}`,
@@ -56,7 +59,6 @@ function commands(articles: Article[]): Command[] {
     { id: "email", group: "contact", label: "send an email", hint: "mailto", href: `mailto:${profile.email}` },
     { id: "linkedin", group: "elsewhere", label: "linkedin", hint: host(profile.links.linkedin), href: profile.links.linkedin, external: true },
     { id: "medium", group: "elsewhere", label: "medium", hint: host(profile.links.medium), href: profile.links.medium, external: true },
-    { id: "gitgood", group: "elsewhere", label: "gitgood", hint: host(profile.links.gitgood), href: profile.links.gitgood, external: true },
     ...articles.slice(0, 4).map((a, i) => ({
       id: `post-${i}`,
       group: "posts",
@@ -80,6 +82,9 @@ function Nav({ commands }: { commands: Command[] }) {
           <a href="#about">about</a>
           <a data-drop href="#timeline">
             timeline
+          </a>
+          <a data-drop href="#projects">
+            projects
           </a>
           <a data-drop href="#principles">
             principles
@@ -115,8 +120,20 @@ function About() {
 
         <div className="about">
           <figure className="about__photo" data-reveal>
-            <span className="about__ring">
+            <span className="about__avatar">
               <img src="/me.jpg" alt="Steven Boyle" width={800} height={800} loading="lazy" decoding="async" />
+              {/* One of the hero's agents, keeping watch. */}
+              <span className="about__orbit" aria-hidden>
+                <svg className="about__bot" viewBox="-5 -6 10 13" width="14" height="18">
+                  <path className="about__flame" d="M-1.3 3.5 L1.3 3.5 L0 6.3 Z" />
+                  <path
+                    fillRule="evenodd"
+                    d="M-2.3 -2.3 H2.3 A1.3 1.3 0 0 1 3.6 -1 V2.2 A1.3 1.3 0 0 1 2.3 3.5 H-2.3 A1.3 1.3 0 0 1 -3.6 2.2 V-1 A1.3 1.3 0 0 1 -2.3 -2.3 Z M-1.35 -0.5 a0.8 0.8 0 1 0 0.01 0 Z M1.35 -0.5 a0.8 0.8 0 1 0 0.01 0 Z"
+                  />
+                  <rect x="-0.45" y="-4" width="0.9" height="1.8" />
+                  <circle cx="0" cy="-4.6" r="0.95" />
+                </svg>
+              </span>
             </span>
             <figcaption>
               <span>~/me.jpg</span>
@@ -151,6 +168,51 @@ function About() {
               </div>
             </dl>
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Projects() {
+  return (
+    <section className="section" id="projects">
+      <div className="shell">
+        <SectionHead name="projects">
+          Things I&rsquo;ve built on my own time.
+          <span> Shipped, and still shipping.</span>
+        </SectionHead>
+
+        <div className="projects">
+          {PROJECTS.map((project) => (
+            <article
+              key={project.id}
+              className="project"
+              data-reveal
+              style={{ "--tone": project.tone } as React.CSSProperties}
+            >
+              <p className="project__meta">
+                {project.meta.map((m) => (
+                  <span key={m}>{m}</span>
+                ))}
+              </p>
+              <h3 className="project__name">{project.name}</h3>
+              <p className="project__summary">{project.summary}</p>
+              <ul className="project__points">
+                {project.points.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+              <p className="project__stack">{project.stack.join(" / ")}</p>
+              {project.link ? (
+                <a className="project__link" href={project.link} target="_blank" rel="noreferrer">
+                  visit {new URL(project.link).hostname} <Arrow />
+                </a>
+              ) : (
+                <p className="project__here">you&rsquo;re here</p>
+              )}
+            </article>
+          ))}
         </div>
       </div>
     </section>
@@ -249,7 +311,6 @@ function Footer({ rev }: { rev: string }) {
   const links: Array<[string, string]> = [
     ["linkedin", profile.links.linkedin],
     ["medium", profile.links.medium],
-    ["gitgood", profile.links.gitgood],
   ];
 
   return (

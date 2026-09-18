@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
-import { PALETTE } from "@/gfx/palette";
 
 const SELECTOR = ".hero__name, .section__title";
 /** Seconds for a lit letter to settle back. */
 const SETTLE = 0.9;
 
-type Glyph = { el: HTMLElement; heat: number; index: number };
+type Glyph = { el: HTMLElement; heat: number };
 
 /**
  * Wraps each non-space character under `root` in its own span, keeping any
@@ -35,7 +34,7 @@ function split(root: Element, glyphs: Glyph[]) {
         span.dataset.g = "";
         span.textContent = char;
         word.append(span);
-        glyphs.push({ el: span, heat: 0, index: glyphs.length });
+        glyphs.push({ el: span, heat: 0 });
       }
       fragment.append(word);
     }
@@ -43,13 +42,20 @@ function split(root: Element, glyphs: Glyph[]) {
   }
 }
 
-/** A colour along the palette, blended between neighbouring entries. */
-function paletteAt(t: number) {
-  const n = PALETTE.length;
-  const i = Math.floor(t) % n;
-  const f = t - Math.floor(t);
-  const [a, b] = [PALETTE[i], PALETTE[(i + 1) % n]];
-  return `rgb(${a.map((v, k) => Math.round(Math.min(1, v + (b[k] - v) * f) * 255)).join(" ")})`;
+/** The four glow colours, magenta through cyan. Mirrors --glow-1..4 in globals.css. */
+const GLOW = [
+  [255, 61, 153],
+  [148, 80, 255],
+  [42, 122, 255],
+  [26, 235, 209],
+];
+
+/** A colour along the magenta → violet → blue → cyan ramp, t in 0..1. */
+function glowAt(t: number) {
+  const x = Math.min(0.999, Math.max(0, t)) * (GLOW.length - 1);
+  const i = Math.floor(x);
+  const f = x - i;
+  return `rgb(${GLOW[i].map((v, k) => Math.round(v + (GLOW[i + 1][k] - v) * f)).join(" ")})`;
 }
 
 /**
@@ -65,8 +71,12 @@ export function GlowHeadings() {
       return { el: el as HTMLElement, glyphs };
     });
 
+    // Each letter's colour is fixed by where it sits in its heading, so it's the same every visit.
+    for (const { glyphs } of headings) {
+      glyphs.forEach((g, i) => g.el.style.setProperty("--glow", glowAt(i / Math.max(1, glyphs.length - 1))));
+    }
+
     let pointer: { x: number; y: number; heading: (typeof headings)[number] } | null = null;
-    let hue = Math.random() * PALETTE.length;
     let frame = 0;
     let last = 0;
 
@@ -85,8 +95,6 @@ export function GlowHeadings() {
             const near = Math.max(0, 1 - d / reach);
             heat = Math.max(heat, near * near * (3 - 2 * near));
           }
-          // Colour is chosen as a letter lights up, and kept while it glows.
-          if (g.heat < 0.02 && heat >= 0.02) g.el.style.setProperty("--glow", paletteAt(hue + g.index * 0.22));
           if (Math.abs(heat - g.heat) > 0.002 || (heat < 0.002 && g.heat > 0)) {
             g.heat = heat < 0.002 ? 0 : heat;
             g.el.style.setProperty("--heat", g.heat.toFixed(3));
@@ -105,17 +113,14 @@ export function GlowHeadings() {
     };
 
     const cleanups = headings.map((heading) => {
-      const onEnter = () => (hue += 1.3);
       const onMove = (e: PointerEvent) => {
         pointer = { x: e.clientX, y: e.clientY, heading };
         wake();
       };
       const onLeave = () => (pointer = null);
-      heading.el.addEventListener("pointerenter", onEnter);
       heading.el.addEventListener("pointermove", onMove, { passive: true });
       heading.el.addEventListener("pointerleave", onLeave);
       return () => {
-        heading.el.removeEventListener("pointerenter", onEnter);
         heading.el.removeEventListener("pointermove", onMove);
         heading.el.removeEventListener("pointerleave", onLeave);
       };

@@ -14,12 +14,14 @@ type Stray = {
 };
 
 /** At most this many agents wander the page at once. */
-export const MAX_STRAYS = 5;
+export const MAX_STRAYS = 8;
 /** Drift down the page, in px/s. */
 const DRIFT = 26;
 const SPEED = 34;
-const LIFE = 60;
-const GREY: Rgb = [0.5, 0.52, 0.6];
+const LIFE = 40;
+const BODY: Rgb = [0.55, 0.57, 0.66];
+/** Robot height in px; mirrors the hero's agents. */
+const ROBOT = 12;
 
 /**
  * Agents that have left the hero and carry on down the page. There are only
@@ -117,28 +119,47 @@ export class StrayLayer {
     const c = this.context;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, w, h);
-    c.lineWidth = 1.5;
-    c.lineCap = "round";
-    c.lineJoin = "round";
-
     for (const s of this.strays) {
       const x = s.x - window.scrollX;
       const y = s.y - window.scrollY;
       if (y < -20 || y > h + 20) continue;
-      // Same brightness as it had in the hero, so the handover is seamless; fade out at the end.
-      const alpha = Math.min(1, (LIFE - s.age) / 4) * (0.38 + 0.62 * s.tint);
-      const rgb = GREY.map((g, i) => Math.round((g + (s.color[i] * 1.2 - g) * s.tint) * 255));
-      c.strokeStyle = `rgb(${rgb.join(" ")} / ${alpha})`;
-
-      const angle = Math.atan2(s.vy, s.vx);
-      const [fx, fy] = [Math.cos(angle), Math.sin(angle)];
-      const [sx, sy] = [-fy, fx];
-      const half = 3.5;
-      c.beginPath();
-      c.moveTo(x - fx * half + sx * half * 0.62, y - fy * half + sy * half * 0.62);
-      c.lineTo(x + fx * half, y + fy * half);
-      c.lineTo(x - fx * half - sx * half * 0.62, y - fy * half - sy * half * 0.62);
-      c.stroke();
+      // Same look and brightness as in the hero, so the handover is seamless; fade out at the end.
+      const alpha = Math.min(1, (LIFE - s.age) / 4) * (0.45 + 0.55 * s.tint);
+      const rgb = BODY.map((g, i) => Math.round(Math.min(1, g + (s.color[i] * 1.2 + 0.05 - g) * s.tint) * 255)).join(" ");
+      const thrust = 0.55 + 0.45 * Math.sin(s.age * 22 + s.seed);
+      drawRobot(c, x, y, Math.max(-0.5, Math.min(0.5, s.vx * 0.012)), `rgb(${rgb} / ${alpha})`, alpha * 0.8 * thrust, thrust);
     }
   }
+}
+
+/**
+ * The hero's robot, drawn with the 2D canvas: body with two eyes cut out, an
+ * antenna, and a flickering thruster. Units are a tenth of its height, y down.
+ */
+function drawRobot(c: CanvasRenderingContext2D, x: number, y: number, tilt: number, body: string, fireAlpha: number, thrust: number) {
+  c.save();
+  c.translate(x, y);
+  c.rotate(tilt);
+  c.scale(ROBOT / 10, ROBOT / 10);
+
+  c.fillStyle = `rgb(255 158 51 / ${fireAlpha})`;
+  c.beginPath();
+  c.moveTo(-1.3, 3.5);
+  c.lineTo(1.3, 3.5);
+  c.lineTo(0, 3.5 + 1.4 + thrust * 1.6);
+  c.fill();
+
+  c.fillStyle = body;
+  c.beginPath();
+  c.roundRect(-3.6, -2.3, 7.2, 5.8, 1.3);
+  c.rect(-0.45, -4, 0.9, 1.8);
+  c.arc(0, -4.6, 0.95, 0, Math.PI * 2);
+  c.fill();
+
+  c.globalCompositeOperation = "destination-out";
+  c.beginPath();
+  c.arc(-1.35, 0.3, 0.8, 0, Math.PI * 2);
+  c.arc(1.35, 0.3, 0.8, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
 }

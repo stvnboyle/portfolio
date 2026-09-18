@@ -215,6 +215,12 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
     }
   }
 
+  // While the gate is shut, a soft band above the bottom edge turns agents back
+  // before they reach it; when it's open, the next one heading down goes through.
+  if (atomicLoad(&gate) != 0u) {
+    steer.y -= smoothstep(swarm.world.y - 80.0, swarm.world.y, p.y) * 70.0;
+  }
+
   // The pointer draws curious agents in, without holding them.
   let toPointer = swarm.pointer.xy - p;
   let pd = length(toPointer);
@@ -237,7 +243,7 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
   }
   // The top turns agents back.
   if (np.y < 0.0 && v.y < 0.0) { v.y = -v.y; }
-  // The bottom: one now and then is let out over the page; the rest turn back.
+  // The bottom: when the gate's open the agent carries on over the page; otherwise it turns back.
   if (np.y > swarm.world.y - 2.0 && v.y > 0.0) {
     if (atomicAdd(&gate, 1u) == 0u) {
       info.x = LEAVING;

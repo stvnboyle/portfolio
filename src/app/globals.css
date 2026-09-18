@@ -32,6 +32,12 @@
   --nav-h: 56px;
   --section-gap: clamp(72px, 11vw, 128px);
 
+  /* The four glow colours: headings and the orbiting agent. */
+  --glow-1: #ff3d99;
+  --glow-2: #9450ff;
+  --glow-3: #2a7aff;
+  --glow-4: #1aebd1;
+
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -494,23 +500,85 @@ kbd {
   width: clamp(140px, 16vw, 184px);
 }
 
-/* A thin ring of the palette around a circular photo. */
-.about__ring {
+/* The circular photo, with one agent orbiting it and cycling through the glow colours. */
+.about__avatar {
+  position: relative;
   display: block;
   width: 100%;
-  padding: 2px;
-  border-radius: 50%;
-  background: conic-gradient(from 200deg, #2a7aff, #9450ff, #ff3d99, #ff9e1f, #1aebd1, #2a7aff);
 }
 
-.about__ring img {
+.about__avatar img {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 50%;
-  border: 3px solid var(--bg);
+}
+
+.about__orbit {
+  position: absolute;
+  inset: -16px;
+  animation: orbit 16s linear infinite;
+  pointer-events: none;
+}
+
+.about__bot {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  translate: -50% 0;
+  /* Counter-rotated so the robot stays upright as it circles, banking slightly. */
+  animation:
+    upright 16s linear infinite,
+    flash 4.8s steps(1) infinite;
+  overflow: visible;
+}
+
+.about__flame {
+  fill: #ff9e33;
+  opacity: 0.8;
+}
+
+@keyframes orbit {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes upright {
+  from {
+    rotate: 12deg;
+  }
+  to {
+    rotate: -348deg;
+  }
+}
+
+@keyframes flash {
+  0% {
+    fill: var(--glow-1);
+    filter: drop-shadow(0 0 4px var(--glow-1));
+  }
+  25% {
+    fill: var(--glow-2);
+    filter: drop-shadow(0 0 4px var(--glow-2));
+  }
+  50% {
+    fill: var(--glow-3);
+    filter: drop-shadow(0 0 4px var(--glow-3));
+  }
+  75% {
+    fill: var(--glow-4);
+    filter: drop-shadow(0 0 4px var(--glow-4));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about__orbit,
+  .about__bot {
+    animation: none;
+  }
 }
 
 .about__photo figcaption {
@@ -585,6 +653,96 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
   }
+}
+
+/* --- projects ------------------------------------------------------------ */
+
+.projects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 16px;
+}
+
+.project {
+  --tone: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: clamp(24px, 3.4vw, 36px);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.project__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.project__meta span:first-child {
+  color: var(--tone);
+}
+
+.project__name {
+  font-size: var(--text-title);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+
+.project__summary {
+  color: var(--fg-dim);
+  line-height: 1.75;
+}
+
+.project__points {
+  display: grid;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+}
+
+.project__points li {
+  position: relative;
+  padding-left: 18px;
+}
+
+.project__points li::before {
+  content: "›";
+  position: absolute;
+  left: 2px;
+  color: var(--tone);
+}
+
+.project__stack {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  line-height: 1.7;
+}
+
+.project__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-top: auto;
+  padding-top: 8px;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+
+.project__link:hover .arrow {
+  transform: translate(2px, -2px);
+}
+
+.project__here {
+  margin-top: auto;
+  padding-top: 8px;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
 }
 
 /* --- principles ---------------------------------------------------------- */
@@ -1436,78 +1594,6 @@ kbd {
 
 .commit--head .commit__summary {
   color: var(--fg);
-}
-
-.commit__more {
-  margin-top: 12px;
-  max-width: 68ch;
-}
-
-.commit__more summary {
-  width: max-content;
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
-  cursor: pointer;
-  list-style: none;
-  transition: color 0.2s var(--ease);
-}
-
-.commit__more summary::-webkit-details-marker {
-  display: none;
-}
-
-.commit__more summary::before {
-  content: "+ ";
-}
-
-.commit__more[open] summary::before {
-  content: "− ";
-}
-
-.commit__more summary:hover {
-  color: var(--fg);
-}
-
-.commit__points {
-  display: grid;
-  gap: 6px;
-  margin-top: 12px;
-  color: var(--fg-dim);
-}
-
-.commit__points li {
-  position: relative;
-  padding-left: 18px;
-}
-
-.commit__points li::before {
-  content: "›";
-  position: absolute;
-  left: 2px;
-  color: var(--tone);
-}
-
-.commit__engagements {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1px;
-  margin-top: 16px;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--line);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
-.commit__engagements > div {
-  padding: 14px 16px;
-  font-size: var(--text-sm);
-  color: var(--fg-dim);
-  background: var(--surface);
-}
-
-.commit__engagement {
-  color: var(--fg);
-  margin-bottom: 4px;
 }
 
 .commit__stack {

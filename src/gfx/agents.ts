@@ -2,7 +2,7 @@ import { compute, draw, effect, pingPongStorage, storage } from "vgpu";
 import swarmShader from "./agents.wgsl";
 import renderShader from "./agents-render.wgsl";
 import skyShader from "./sky.wgsl";
-import { PALETTE } from "./palette";
+import { PALETTE, type Rgb } from "./palette";
 import { onCopy, pointerIn, runScene, type StartScene } from "./scene";
 import { MAX_STRAYS, StrayLayer } from "./strays";
 
@@ -24,32 +24,16 @@ const COUNTS_BYTES = 48;
 const EXITS_BYTES = 80;
 const MAX_EXITS = 2;
 
-/**
- * Kinds of work. Each has its own colour, how long it takes a full crew, how
- * big a crew counts as full, and how often it turns up.
- */
-const TASK_TYPES = [
-  { kind: "feature", color: PALETTE[0], seconds: 14, crew: 36, radius: 22, weight: 3 },
-  { kind: "bug", color: PALETTE[2], seconds: 6, crew: 18, radius: 16, weight: 3 },
-  { kind: "refactor", color: PALETTE[1], seconds: 10, crew: 28, radius: 19, weight: 2 },
-  { kind: "review", color: PALETTE[3], seconds: 4, crew: 10, radius: 14, weight: 2 },
-  { kind: "tests", color: PALETTE[5], seconds: 7, crew: 16, radius: 15, weight: 2 },
-  { kind: "incident", color: PALETTE[4], seconds: 5, crew: 44, radius: 21, weight: 1 },
-] as const;
-
-type TaskType = (typeof TASK_TYPES)[number];
-
-function pickType(): TaskType {
-  let r = Math.random() * TASK_TYPES.reduce((sum, t) => sum + t.weight, 0);
-  for (const type of TASK_TYPES) if ((r -= type.weight) <= 0) return type;
-  return TASK_TYPES[0];
-}
+/** A task finishes in this many seconds with a full crew working it; slower with fewer. */
+const WORK_SECONDS = 8;
+const FULL_CREW = 24;
 
 type Task = {
   id: number;
-  type: TaskType;
   x: number;
   y: number;
+  radius: number;
+  color: Rgb;
   age: number;
   progress: number;
   workers: number;
@@ -63,8 +47,7 @@ type Handoff = { to: Task; until: number } | null;
 
 /**
  * A swarm of agents on the GPU. They flock with their neighbours, pick up
- * tasks — features, bugs, reviews and so on, each taking its own time — circle
- * them while they work, and take on the task's colour. A task only moves
+ * tasks that appear across the hero, circle them while they work, and take on the task's colour. A task only moves
  * forward while agents are actually on it (the GPU counts them each step), and
  * when it's done part of its crew carries the colour on to the next task.
  *
@@ -136,8 +119,8 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       const strength = (t: Task | null) => (!t || t.closed ? 0 : Math.min(1, t.age * 1.5));
       const taskValues = () => ({
-        at: tasks.map((t) => (t ? [t.x, t.y, t.type.radius, strength(t)] : [0, 0, 1, 0])),
-        tint: tasks.map((t) => (t ? [...t.type.color, 0] : [0, 0, 0, 0])),
+        at: tasks.map((t) => (t ? [t.x, t.y, t.radius, strength(t)] : [0, 0, 1, 0])),
+        tint: tasks.map((t) => (t ? [...t.color, 0] : [0, 0, 0, 0])),
         handoff: handoffs.map((h) => (h ? [h.to.x, h.to.y, 1, HANDOFF_SHARE] : [0, 0, 0, 0])),
       });
 
@@ -162,7 +145,8 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       measureCopy();
       canvasSurface.onResize(measureCopy);
 
-      const view = (t: number) => ({ frame: [...canvasSize(), 7, t], copy: copyBox });
+      // Robots are 12px tall.
+      const view = (t: number) => ({ frame: [...canvasSize(), 12, t], copy: copyBox });
       const renderTasks = () => {
         const { at, tint } = taskValues();
         return {
@@ -203,10 +187,11 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       // Labels live in the hero's overlay layer, next to each ring.
       const overlay = hero.querySelector<HTMLElement>(".hero__overlay");
       let nextId = 1;
+      let colorIndex = Math.floor(Math.random() * PALETTE.length);
       let completed = 0;
 
       const labelText = (t: Task) => {
-        const name = `#${String(t.id).padStart(2, "0")} ${t.type.kind}`;
+        const name = `#${String(t.id).padStart(2, "0")}`;
         if (t.closed === "done") return `${name} · done`;
         return `${name} · ${t.workers} ${t.workers === 1 ? "agent" : "agents"}`;
       };
@@ -218,14 +203,15 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           slot = tasks.reduce((best, t, i) => ((t?.progress ?? 0) > (tasks[best]?.progress ?? 0) ? i : best), 0);
           tasks[slot]?.label.remove();
         }
-        const type = pickType();
+        colorIndex = (colorIndex + 1) % PALETTE.length;
+        const color = PALETTE[colorIndex];
         const label = document.createElement("span");
         label.className = "task-label";
         // Near the right edge the label sits on the ring's left instead.
         if (x > world()[0] - 240) label.dataset.side = "left";
-        label.style.cssText = `left:${x}px;top:${y}px;--tone:rgb(${type.color.map((c) => Math.round(c * 255)).join(" ")})`;
+        label.style.cssText = `left:${x}px;top:${y}px;--tone:rgb(${color.map((c) => Math.round(c * 255)).join(" ")})`;
         overlay?.append(label);
-        const task: Task = { id: nextId++, type, x, y, age: 0, progress: 0, workers: 0, closed: null, burst: 0, label };
+        const task: Task = { id: nextId++, x, y, radius: 16 + Math.random() * 6, color, age: 0, progress: 0, workers: 0, closed: null, burst: 0, label };
         label.textContent = labelText(task);
         tasks[slot] = task;
       };
@@ -358,8 +344,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             if (!t) return null;
             t.age += dt;
             if (!t.closed) {
-              const { crew, seconds } = t.type;
-              t.progress = Math.min(1, t.progress + (dt * Math.min(t.workers, crew)) / (crew * seconds));
+              t.progress = Math.min(1, t.progress + (dt * Math.min(t.workers, FULL_CREW)) / (FULL_CREW * WORK_SECONDS));
               if (t.progress >= 1) {
                 t.closed = "done";
                 completed++;
@@ -400,7 +385,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           nextLeave -= dt;
           if (nextLeave <= 0 && strays.count + leaving < MAX_STRAYS) {
             gate.write(new Uint32Array([0]));
-            nextLeave = 3 + Math.random() * 3;
+            nextLeave = 0.8 + Math.random() * 1.2;
           }
           exitBudget = strays.count < MAX_STRAYS ? MAX_EXITS : 0;
 
@@ -431,9 +416,9 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           const live = tasks.filter((t): t is Task => Boolean(t && !t.closed));
           const tone: [number, number, number, number] = live.length
             ? [
-                live.reduce((s, t) => s + t.type.color[0], 0) / live.length,
-                live.reduce((s, t) => s + t.type.color[1], 0) / live.length,
-                live.reduce((s, t) => s + t.type.color[2], 0) / live.length,
+                live.reduce((s, t) => s + t.color[0], 0) / live.length,
+                live.reduce((s, t) => s + t.color[1], 0) / live.length,
+                live.reduce((s, t) => s + t.color[2], 0) / live.length,
                 Math.min(1, live.length / 5),
               ]
             : [0.35, 0.45, 0.95, 0];
