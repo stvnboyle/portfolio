@@ -27,6 +27,13 @@ const MAX_EXITS = 2;
 /** Every fresh load plays out from the same seed, so the swarm goes the same way each time. */
 const SEED = 20260918;
 
+/** How long a finished task's pulse takes to swell out and fade. */
+const PULSE_SECONDS = 2.2;
+/**
+ * A first visit starts quiet: a small crew and one task, building up to the
+ * full population and several open tasks over this many seconds.
+ */
+const WARMUP_SECONDS = 75;
 /** A task finishes in this many seconds with a full crew working it; slower with fewer. */
 const WORK_SECONDS = 8;
 const FULL_CREW = 24;
@@ -45,6 +52,8 @@ type Task = {
   burst: number;
   label: HTMLElement;
 };
+
+const mixNumber = (a: number, b: number, t: number) => a + (b - a) * t;
 
 type Handoff = { to: Task; until: number } | null;
 
@@ -66,8 +75,9 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
     ({ gpu, surface: canvasSurface, small, calm, onCleanup }) => {
       const random = seeded(SEED);
       const capacity = small ? 760 : 2400;
-      // The population drifts around this, gently rising and falling over minutes.
-      const baseline = small ? 440 : 1300;
+      // The population builds up to this, then gently rises and falls around it over minutes.
+      const baseline = small ? 300 : 900;
+      const opening = small ? 60 : 140;
       // The hero is the world; the canvas runs on below it over the page.
       const world = () => [hero.clientWidth, hero.clientHeight] as const;
       const canvasSize = () => [canvas.clientWidth, canvas.clientHeight] as const;
@@ -80,7 +90,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         const o = i * STRIDE * 4;
         initial.set([random() * w, random() * h, Math.cos(angle) * 40, Math.sin(angle) * 40], o);
         initial.set([0.5, 0.52, 0.6, 0], o + 4);
-        initial.set([i < baseline ? 1 : 0, -1, 0, 0], o + 8);
+        initial.set([i < opening ? 1 : 0, -1, 0, 0], o + 8);
       }
       const state = pingPongStorage(gpu, capacity * STRIDE * 16);
       state.read.write(initial);
@@ -103,10 +113,10 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         capacity,
         tasks: MAX_TASKS,
         dt: 1 / SIM_HZ,
-        near: 10,
-        sight: 38,
-        minSpeed: 24,
-        maxSpeed: 58,
+        near: 15,
+        sight: 46,
+        minSpeed: 34,
+        maxSpeed: 70,
         fade: 2.5,
         exitBudget,
         spawnBudget: spawn.budget,
@@ -152,15 +162,18 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       measureCopy();
       canvasSurface.onResize(measureCopy);
 
-      // Robots are 15px tall.
-      const view = (t: number) => ({ frame: [...canvasSize(), 15, t], copy: copyBox });
+      // Robots are 20px tall (17px on phones).
+      const robot = small ? 17 : 20;
+      const view = (t: number) => ({ frame: [...canvasSize(), robot, t], copy: copyBox });
+      // How far a finished task's pulse swells, in task radii; less on phones, where it would fill the screen.
+      const pulseReach = small ? 6.5 : 11;
       const renderTasks = () => {
         const { at, tint } = taskValues();
         return {
           at,
           tint,
           // Dropped tasks just fade; only finished ones ring out.
-          progress: tasks.map((t) => (t ? [t.progress, t.closed === "dropped" ? 0 : t.burst, 0, 0] : [0, 0, 0, 0])),
+          progress: tasks.map((t) => (t ? [t.progress, t.closed === "dropped" ? 0 : t.burst, pulseReach, 0] : [0, 0, 0, 0])),
         };
       };
       const agents = draw(gpu, {
@@ -187,7 +200,20 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         const [w, h] = world();
         return [1.05, w / Math.max(1, h), t, h / Math.max(1, canvasSize()[1])];
       };
-      const sky = effect(gpu, skyShader, { label: "agents-sky", set: { sky: { frame: skyFrame(0), tint: mood } } });
+      // Each task raises a hill in the backdrop's contours: it rises as the task
+      // opens, builds as the crew works, and settles back once it's done.
+      const hillHeight = (t: Task) =>
+        (t.closed ? Math.max(0, 1 - t.burst) * (t.closed === "done" ? 1 : 0.4) : Math.min(1, t.age * 0.5)) *
+        (0.35 + 0.4 * t.progress);
+      const terrainValues = () => ({
+        world: [...world(), 0, 0],
+        hills: tasks.map((t) => (t ? [t.x, t.y, t.radius * 7, hillHeight(t)] : [0, 0, 1, 0])),
+        tones: tasks.map((t) => (t ? [...t.color, 0] : [0, 0, 0, 0])),
+      });
+      const sky = effect(gpu, skyShader, {
+        label: "agents-sky",
+        set: { sky: { frame: skyFrame(0), tint: mood }, terrain: terrainValues() },
+      });
 
       /* --- tasks ---------------------------------------------------------- */
 
@@ -199,8 +225,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       const labelText = (t: Task) => {
         const name = `#${String(t.id).padStart(2, "0")}`;
-        if (t.closed === "done") return `${name} · done`;
-        return `${name} · ${t.workers} ${t.workers === 1 ? "agent" : "agents"}`;
+        return t.closed === "done" ? `${name} · done` : name;
       };
 
       const post = (x: number, y: number) => {
@@ -212,13 +237,18 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         }
         colorIndex = (colorIndex + 1) % PALETTE.length;
         const color = PALETTE[colorIndex];
+        const radius = small ? 17 + random() * 5 : 20 + random() * 7;
         const label = document.createElement("span");
         label.className = "task-label";
-        // Near the right edge the label sits on the ring's left instead.
-        if (x > world()[0] - 240) label.dataset.side = "left";
-        label.style.cssText = `left:${x}px;top:${y}px;--tone:rgb(${color.map((c) => Math.round(c * 255)).join(" ")})`;
+        // The label sits on whichever side of the ring has more room.
+        if (x > world()[0] / 2) label.dataset.side = "left";
+        const tone = `rgb(${color.map((c) => Math.round(c * 255)).join(" ")})`;
+        // Clear of the orbit the crew settles into, about four radii out.
+        label.style.cssText = `left:${x}px;top:${y}px;--tone:${tone};--clear:${Math.round(radius * 4.3)}px`;
+        // The nav caret picks up the newest task's colour.
+        document.documentElement.style.setProperty("--swarm-tone", tone);
         overlay?.append(label);
-        const task: Task = { id: nextId++, x, y, radius: 16 + random() * 6, color, age: 0, progress: 0, workers: 0, closed: null, burst: 0, label };
+        const task: Task = { id: nextId++, x, y, radius, color, age: 0, progress: 0, workers: 0, closed: null, burst: 0, label };
         label.textContent = labelText(task);
         tasks[slot] = task;
       };
@@ -230,7 +260,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           const y = h * (small ? 0.55 + random() * 0.25 : 0.2 + random() * 0.58);
           if (!small && x < w * 0.55 && y < h * 0.6) continue;
           // Keep clear of other open tasks, so rings and labels don't overlap.
-          if (tasks.some((t) => t && !t.closed && Math.hypot(t.x - x, t.y - y) < (small ? 140 : 260))) continue;
+          if (tasks.some((t) => t && !t.closed && Math.hypot(t.x - x, t.y - y) < (small ? 170 : 320))) continue;
           return post(x, y);
         }
       };
@@ -245,7 +275,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       /* --- population ----------------------------------------------------- */
 
-      let alive = baseline;
+      let alive = opening;
       let leaving = 0;
       let nextSquad = 2;
       let nextLeave = 4;
@@ -271,9 +301,6 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             const exited = Math.min(new Uint32Array(e, 0, 1)[0], MAX_EXITS);
             if (!exited) return;
             exits.write(noExits);
-      // Starts shut (non-zero); writing 0 lets the next agent at the bottom edge out.
-      const gate = storage(gpu, 4);
-      gate.write(new Uint32Array([1]));
             // Carry each leaver on from the bottom of the canvas, where it will be by now.
             const late = (performance.now() - started) / 1000 + READBACK_MS / 2000;
             const rect = canvas.getBoundingClientRect();
@@ -315,16 +342,20 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         hero.removeEventListener("pointerleave", onLeave);
         hero.removeEventListener("pointerdown", onDown);
         for (const t of tasks) t?.label.remove();
+        document.documentElement.style.removeProperty("--swarm-tone");
         strays.dispose();
       });
 
-      postRandom();
-      postRandom();
 
       /* --- loop ----------------------------------------------------------- */
 
       let accumulator = 0;
-      let nextPost = 1.5;
+      let nextPost = 3;
+      // 0 → 1 over the warm-up, easing in and out.
+      const warmth = () => {
+        const k = Math.min(1, simTime / WARMUP_SECONDS);
+        return k * k * (3 - 2 * k);
+      };
 
       /** One fixed step: schedule tasks, squads and exits, then advance the swarm on the GPU. */
       const simulate = (h: number) => {
@@ -334,7 +365,9 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         nextPost -= h;
         if (nextPost <= 0) {
           const open = tasks.filter((t) => t && !t.closed).length;
-          if (!calm && open < (small ? 2 : 4)) postRandom();
+          // One task at a time to begin with, then more as the swarm warms up.
+          const most = 1 + Math.round(warmth() * (small ? 1 : 2));
+          if (!calm && open < most) postRandom();
           nextPost = 2 + random() * 2;
         }
 
@@ -352,7 +385,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
               t.closed = "dropped";
             }
           } else {
-            t.burst += h / 1.4;
+            t.burst += h / PULSE_SECONDS;
           }
           if (t.burst < 1) return t;
           t.label.remove();
@@ -365,7 +398,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
         // New squads arrive from the top or the sides while the population is below target.
         nextSquad -= h;
-        const target = baseline * (1 + 0.12 * Math.sin(simTime / 45));
+        const target = mixNumber(opening, baseline, warmth()) * (1 + 0.12 * Math.sin(simTime / 45));
         if (nextSquad <= 0) {
           nextSquad = 1.5 + random() * 2.5;
           if (!calm && alive < target) {
@@ -447,7 +480,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             : [0.35, 0.45, 0.95, 0];
           const k = Math.min(1, dt * 0.6);
           mood = mood.map((v, i) => v + (tone[i] - v) * k) as typeof mood;
-          sky.set({ sky: { frame: skyFrame(elapsed), tint: mood } });
+          sky.set({ sky: { frame: skyFrame(elapsed), tint: mood }, terrain: terrainValues() });
 
           frame.pass({ target: canvasSurface, clear: [0, 0, 0, 0] }, (pass) => {
             pass.draw(sky);

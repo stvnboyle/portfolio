@@ -5,7 +5,7 @@ export const profile = {
   roles: ["Builder", "Tech Lead", "Engineering Manager", "Founder"],
   location: "Newcastle upon Tyne, UK",
   email: "iboyleyv1@gmail.com",
-  tagline: "I build platforms, teams, and the tools that ship them.",
+  tagline: "I like building things and figuring out the tricky problems along the way.",
   intro:
     "Engineering leader who's grown from IC to leading engineering teams, customer engagements, and influencing technical direction across projects and organisations. I deliver complex platforms across different industries while founding a developer tool — comfortable owning the full path from architecture, to delivery, to team leadership, with a focus on agentic engineering.",
   intro2:

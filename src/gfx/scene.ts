@@ -113,8 +113,8 @@ export function pointerIn(canvas: HTMLCanvasElement, e: PointerEvent): [number, 
   return [e.clientX - rect.left, e.clientY - rect.top];
 }
 
-/** True when a press lands on the hero copy, which is left alone so text can be selected. */
-export const onCopy = (e: Event) => Boolean((e.target as Element).closest(".hero__inner > *"));
+/** True when a press lands on the hero copy or a HUD link, which are left alone so text can be selected and links followed. */
+export const onCopy = (e: Event) => Boolean((e.target as Element).closest(".hero__inner > *, .hero__hud a"));
 
 /** Splits a flat Float32Array into the vec4 tuples a uniform array expects. */
 export function vec4s(data: Float32Array): number[][] {

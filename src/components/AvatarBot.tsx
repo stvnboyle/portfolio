@@ -15,7 +15,7 @@ const MARGIN = 34;
 
 /**
  * One of the hero's robots, flying loops around the avatar: a wobbling orbit
- * with a gentle bob, banking into its turns and cycling through the heading
+ * with a gentle bob, leaning into its turns and cycling through the heading
  * colours. The same path every visit.
  */
 export function AvatarBot() {
@@ -48,7 +48,7 @@ export function AvatarBot() {
       context.clearRect(0, 0, size, size);
 
       const [x, y] = place(t);
-      const [nx] = place(t + 0.05);
+      const [nx, ny] = place(t + 0.05);
       // Hold each colour, then blend quickly into the next: a flash, not a fade.
       const phase = (t / 1.3) % COLOURS.length;
       const i = Math.floor(phase);
@@ -60,12 +60,14 @@ export function AvatarBot() {
       context.shadowColor = `rgb(${tint.map((v) => Math.round(v * 255)).join(" ")} / 0.7)`;
       context.shadowBlur = 10;
       drawRobot(context, x, y, {
-        tilt: Math.max(-0.45, Math.min(0.45, (nx - x) * 0.35)),
+        vx: (nx - x) / 0.05,
+        vy: (ny - y) / 0.05,
         tint,
         weight: 1,
         alpha: 1,
-        thrust: 0.55 + 0.45 * Math.sin(t * 22),
-        size: 17,
+        time: t,
+        seed: 0,
+        size: 22,
       });
     };
 

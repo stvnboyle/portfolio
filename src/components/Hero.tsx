@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import type { SceneStats } from "@/gfx/scene";
 import { startAgents } from "@/gfx/agents";
 import { profile } from "@/data/profile";
+import { WebVitals } from "./WebVitals";
+
+/** Craig Reynolds' boids, the flocking model the swarm's first three terms come from. */
+const BOIDS_URL = "https://www.red3d.com/cwr/boids/";
 
 type FieldState = { kind: "starting" } | { kind: "live"; status: SceneStats | null } | { kind: "unsupported" };
 
@@ -37,16 +41,26 @@ export function Hero() {
       <div className="hero__overlay" aria-hidden />
 
       <div className="shell hero__inner">
+        <WebVitals />
         <p className="hero__eyebrow">{profile.roles.join(" · ")}</p>
         <h1 className="hero__name">{profile.name}</h1>
       </div>
 
-      <div className="shell hero__hud" aria-hidden>
+      <div className="shell hero__hud">
         <p className="hud__equation">
-          <span className="hud__formula">vᵢ += a·sepᵢ + b·alignᵢ + c·cohᵢ + d·(tₖ − xᵢ)</span>
-          <span>{unsupported ? "static preview" : "click to post a task"}</span>
+          <a
+            className="hud__formula"
+            href={BOIDS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Boids, Craig Reynolds' flocking model (opens in a new tab)"
+          >
+            vᵢ += a·sepᵢ + b·alignᵢ + c·cohᵢ + d·(tₖ − xᵢ)
+            <span aria-hidden> ↗</span>
+          </a>
+          <span aria-hidden>{unsupported ? "static preview" : "boids, reynolds ’87 · click to post a task"}</span>
         </p>
-        <dl className="hud">
+        <dl className="hud" aria-hidden>
           <div>
             <dt>runtime</dt>
             <dd>{unsupported ? "no webgpu" : "vgpu · webgpu"}</dd>
