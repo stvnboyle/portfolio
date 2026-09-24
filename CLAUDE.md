@@ -64,6 +64,6 @@ screenshot desktop (1440×900) and mobile (390×844) with headless Chromium
 (`--enable-unsafe-webgpu --use-angle=metal`; playwright-core is available under
 `~/git-good/node_modules/.pnpm`). Headless Chrome caps at 30fps — that isn't a perf regression.
 
-Deploys: Vercel ↔ GitHub auto-deploy isn't connected yet (needs the Vercel GitHub App granted
-access to the private repo). Until then: commit to `main`, push, then `vercel deploy --prod --yes`,
-and confirm the live footer shows the new `rev`.
+Deploys: the Vercel project is git-connected to `stevensGIT/portfolio`. Pushing to `main` deploys
+production; other branches get preview URLs. After pushing, confirm the live footer shows the new
+`rev`. `vercel deploy --prod --yes` remains a manual fallback.
