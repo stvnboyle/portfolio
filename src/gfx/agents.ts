@@ -2,10 +2,12 @@ import { compute, draw, effect, pingPongStorage, storage } from "vgpu";
 import swarmShader from "./agents.wgsl";
 import renderShader from "./agents-render.wgsl";
 import skyShader from "./sky.wgsl";
+import trailsShader from "./trails.wgsl";
 import { PALETTE, type Rgb } from "./palette";
 import { onCopy, pointerIn, runScene, type StartScene } from "./scene";
 import { MAX_STRAYS, StrayLayer } from "./strays";
 import { seeded } from "./random";
+import { createIntro } from "./intro";
 
 /** Mirrors the task array lengths in agents.wgsl and agents-render.wgsl. */
 const MAX_TASKS = 8;
@@ -24,6 +26,15 @@ const COUNTS_BYTES = 48;
 /** Bytes in the Exits struct: an atomic count, padded to 16, then four vec4s (two exits). */
 const EXITS_BYTES = 80;
 const MAX_EXITS = 2;
+/** Pheromone trail cells are this many CSS px square. */
+const TRAIL_CELL = 2;
+/** Trails fade to a third in about this many seconds once nobody's passing. */
+const TRAIL_SECONDS = 5;
+/** A finished task's trail starts clearing this long after it completes, and takes this long. */
+const CLEAR_DELAY = 0.5;
+const CLEAR_SECONDS = 1.5;
+/** Fixed-point scale for trail deposits (they're summed with integer atomics). */
+const TRAIL_SCALE = 4096;
 /** Every fresh load plays out from the same seed, so the swarm goes the same way each time. */
 const SEED = 20260918;
 
@@ -106,7 +117,40 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       const gate = storage(gpu, 4);
       gate.write(new Uint32Array([1]));
 
+      // Pheromone trails: a grid over the hero, sized once; it stretches with the hero on resize.
+      const [trailW, trailH] = world().map((v) => Math.max(1, Math.ceil(v / TRAIL_CELL)));
+      const trailCells = trailW * trailH;
+      const deposit = storage(gpu, trailCells * 12);
+      deposit.write(new Uint32Array(trailCells * 3));
+      const trail = pingPongStorage(gpu, trailCells * 16);
+      trail.read.write(new Float32Array(trailCells * 4));
+      trail.write.write(new Float32Array(trailCells * 4));
+      const trailGrid = [trailW, trailH, Math.exp(-1 / (SIM_HZ * TRAIL_SECONDS)), TRAIL_SCALE];
+      // Where each finished task's trail is clearing, in trail cells (see trails.wgsl).
+      const sweeps = () => {
+        const [w, h] = world();
+        return tasks.map((t) => {
+          const progress = t?.closed ? (t.burst * PULSE_SECONDS - CLEAR_DELAY) / CLEAR_SECONDS : 0;
+          if (!t || progress <= 0 || progress > 1) return [0, 0, 1, 0];
+          return [(t.x / w) * trailW, (t.y / h) * trailH, (t.radius * 6.5 * trailW) / w, progress];
+        });
+      };
+      const trails = compute(gpu, trailsShader, {
+        label: "agents-trails",
+        // (No tasks exist yet, so nothing to clear.)
+        set: {
+          trail: { grid: trailGrid, sweeps: Array.from({ length: MAX_TASKS }, () => [0, 0, 1, 0]) },
+          deposit,
+          current: trail.read,
+          next: trail.write,
+        },
+      });
+
       const pointer = { x: -1e4, y: -1e4, presence: 0, target: 0 };
+      // Robots are 20px tall (17px on phones).
+      const robot = small ? 17 : 20;
+      // The name's entrance, etched by a crew of robots with lasers.
+      const intro = createIntro(hero, canvas, !calm, robot);
       let exitBudget = MAX_EXITS;
       let spawn = { budget: 0, at: [0, 0, 0, 0] };
       const swarmValues = () => ({
@@ -125,6 +169,10 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         apron: apron(),
         spawnAt: spawn.at,
         pointer: [pointer.x, pointer.y, 0, pointer.presence],
+        introCount: intro.count,
+        introAt: intro.at,
+        introTint: intro.tint,
+        trailGrid: [trailW, trailH, TRAIL_SCALE, 0],
       });
 
       let tasks: Array<Task | null> = Array.from({ length: MAX_TASKS }, () => null);
@@ -143,7 +191,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       const swarm = compute(gpu, swarmShader, {
         label: "agents-swarm",
-        set: { swarm: swarmValues(), tasks: taskValues(), counts, exits, gate },
+        set: { swarm: swarmValues(), tasks: taskValues(), counts, exits, gate, deposit },
       });
 
       // The copy's box in canvas pixels, so idle agents can dim over it.
@@ -162,8 +210,6 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       measureCopy();
       canvasSurface.onResize(measureCopy);
 
-      // Robots are 20px tall (17px on phones).
-      const robot = small ? 17 : 20;
       const view = (t: number) => ({ frame: [...canvasSize(), robot, t], copy: copyBox });
       // How far a finished task's pulse swells, in task radii; less on phones, where it would fill the screen.
       const pulseReach = small ? 6.5 : 11;
@@ -176,6 +222,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           progress: tasks.map((t) => (t ? [t.progress, t.closed === "dropped" ? 0 : t.burst, pulseReach, 0] : [0, 0, 0, 0])),
         };
       };
+      const beamValues = () => ({ line: intro.beams, tint: intro.beamTint });
       const agents = draw(gpu, {
         shader: renderShader,
         label: "agents",
@@ -183,7 +230,16 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         instances: capacity,
         vertices: 6,
         blend: "premultiplied",
-        set: { view: view(0), agents: state.read, tasks: renderTasks() },
+        set: { view: view(0), agents: state.read, tasks: renderTasks(), beams: beamValues() },
+      });
+      const lasers = draw(gpu, {
+        shader: renderShader,
+        label: "agent-intro-lasers",
+        entry: { vertex: "vs_beams", fragment: "fs_beams" },
+        instances: 8,
+        vertices: 6,
+        blend: "premultiplied",
+        set: { view: view(0), agents: state.read, tasks: renderTasks(), beams: beamValues() },
       });
       const rings = draw(gpu, {
         shader: renderShader,
@@ -192,7 +248,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         instances: MAX_TASKS,
         vertices: 6,
         blend: "premultiplied",
-        set: { view: view(0), agents: state.read, tasks: renderTasks() },
+        set: { view: view(0), agents: state.read, tasks: renderTasks(), beams: beamValues() },
       });
 
       let mood: [number, number, number, number] = [0.35, 0.45, 0.95, 0];
@@ -200,19 +256,10 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         const [w, h] = world();
         return [1.05, w / Math.max(1, h), t, h / Math.max(1, canvasSize()[1])];
       };
-      // Each task raises a hill in the backdrop's contours: it rises as the task
-      // opens, builds as the crew works, and settles back once it's done.
-      const hillHeight = (t: Task) =>
-        (t.closed ? Math.max(0, 1 - t.burst) * (t.closed === "done" ? 1 : 0.4) : Math.min(1, t.age * 0.5)) *
-        (0.35 + 0.4 * t.progress);
-      const terrainValues = () => ({
-        world: [...world(), 0, 0],
-        hills: tasks.map((t) => (t ? [t.x, t.y, t.radius * 7, hillHeight(t)] : [0, 0, 1, 0])),
-        tones: tasks.map((t) => (t ? [...t.color, 0] : [0, 0, 0, 0])),
-      });
+      const trailView = () => ({ view: [...world(), trailW, trailH] });
       const sky = effect(gpu, skyShader, {
         label: "agents-sky",
-        set: { sky: { frame: skyFrame(0), tint: mood }, terrain: terrainValues() },
+        set: { sky: { frame: skyFrame(0), tint: mood }, trails: trailView(), trail: trail.read },
       });
 
       /* --- tasks ---------------------------------------------------------- */
@@ -245,8 +292,6 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         const tone = `rgb(${color.map((c) => Math.round(c * 255)).join(" ")})`;
         // Clear of the orbit the crew settles into, about four radii out.
         label.style.cssText = `left:${x}px;top:${y}px;--tone:${tone};--clear:${Math.round(radius * 4.3)}px`;
-        // The nav caret picks up the newest task's colour.
-        document.documentElement.style.setProperty("--swarm-tone", tone);
         overlay?.append(label);
         const task: Task = { id: nextId++, x, y, radius, color, age: 0, progress: 0, workers: 0, closed: null, burst: 0, label };
         label.textContent = labelText(task);
@@ -342,7 +387,6 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         hero.removeEventListener("pointerleave", onLeave);
         hero.removeEventListener("pointerdown", onDown);
         for (const t of tasks) t?.label.remove();
-        document.documentElement.style.removeProperty("--swarm-tone");
         strays.dispose();
       });
 
@@ -423,6 +467,10 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         swarm.set({ swarm: swarmValues(), tasks: taskValues(), current: state.read, next: state.write });
         swarm.dispatch(Math.ceil(capacity / 64));
         state.swap();
+        // Then fold this step's marks into the trails, softened and faded.
+        trails.set({ trail: { grid: trailGrid, sweeps: sweeps() }, current: trail.read, next: trail.write });
+        trails.dispatch(Math.ceil(trailCells / 64));
+        trail.swap();
         // A squad arrives in a single step.
         spawn = { budget: 0, at: spawn.at };
       };
@@ -443,6 +491,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           }
 
           pointer.presence += (pointer.target - pointer.presence) * (1 - Math.exp(-realDt * 6));
+          intro.update(realDt);
           // Everything that decides where the swarm goes runs on the fixed simulation
           // clock, so a fresh load with the same seed plays out the same way.
           accumulator += dt;
@@ -464,9 +513,10 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             t.label.style.opacity = String(Math.min(1, t.age * 1.5) * (1 - Math.min(1, t.burst * 1.5)));
           }
 
-          const bound = { view: view(elapsed), agents: state.read, tasks: renderTasks() };
+          const bound = { view: view(elapsed), agents: state.read, tasks: renderTasks(), beams: beamValues() };
           agents.set(bound);
           rings.set(bound);
+          lasers.set(bound);
 
           // The sky takes on the colours of the open tasks.
           const live = tasks.filter((t): t is Task => Boolean(t && !t.closed));
@@ -480,11 +530,12 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             : [0.35, 0.45, 0.95, 0];
           const k = Math.min(1, dt * 0.6);
           mood = mood.map((v, i) => v + (tone[i] - v) * k) as typeof mood;
-          sky.set({ sky: { frame: skyFrame(elapsed), tint: mood }, terrain: terrainValues() });
+          sky.set({ sky: { frame: skyFrame(elapsed), tint: mood }, trails: trailView(), trail: trail.read });
 
           frame.pass({ target: canvasSurface, clear: [0, 0, 0, 0] }, (pass) => {
             pass.draw(sky);
             pass.draw(rings);
+            pass.draw(lasers);
             pass.draw(agents);
           });
         },

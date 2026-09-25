@@ -2,14 +2,12 @@ export const profile = {
   name: "Steven Boyle",
   fullName: "Steven Buchanan Boyle",
   handle: "stevenboyle",
-  roles: ["Builder", "Tech Lead", "Engineering Manager", "Founder"],
+  roles: ["Engineer", "Architect", "Founder"],
   location: "Newcastle upon Tyne, UK",
   email: "iboyleyv1@gmail.com",
   tagline: "I like building things and figuring out the tricky problems along the way.",
   intro:
-    "Engineering leader who's grown from IC to leading engineering teams, customer engagements, and influencing technical direction across projects and organisations. I deliver complex platforms across different industries while founding a developer tool — comfortable owning the full path from architecture, to delivery, to team leadership, with a focus on agentic engineering.",
-  intro2:
-    "I use AI to build and ship at pace and quality, and I care deeply about developer, end user, and agent experiences.",
+    "I've grown from IC to leading engineering teams, owning the whole path from architecture to delivery on complex platforms. Lately that means agentic engineering: using AI to ship at pace without dropping the quality bar.",
   links: {
     linkedin: "https://linkedin.com/in/steven-buchanan-boyle-114384139",
     medium: "https://medium.com/@stevenboyle64",
@@ -94,7 +92,7 @@ export const roles: Role[] = [
     ],
   },
   {
-    company: "HelloWorld Technologies",
+    company: "HelloWorld Technologies Ltd",
     short: "HelloWorld",
     title: "Founder (part-time)",
     period: "Oct 2025 — Present",
@@ -211,7 +209,6 @@ export const hobbies = [
   "Big gym goer",
   "Deep nature breakaways and walking trails",
   "Dystopian thrillers on Netflix",
-  "Time with my pooches",
-  "Writing a tech blog",
+  "Walkies",
   "Tinkering with new technologies",
 ];

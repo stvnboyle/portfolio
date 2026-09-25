@@ -35,7 +35,9 @@ export function Hero() {
   const status = field.kind === "live" ? field.status : null;
 
   return (
-    <section className="hero" id="top" ref={heroRef} data-field={field.kind}>
+    // data-intro starts "pending" (the name as an outline); the swarm's intro
+    // (gfx/intro.ts) moves it to "etching" and then "done" on the element itself.
+    <section className="hero" id="top" ref={heroRef} data-field={field.kind} data-intro="pending">
       <canvas ref={canvasRef} className="hero__canvas" aria-hidden />
       {/* Task labels are pinned over the canvas here. */}
       <div className="hero__overlay" aria-hidden />

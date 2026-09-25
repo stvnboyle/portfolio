@@ -23,6 +23,15 @@ struct Tasks {
 @group(0) @binding(1) var<storage, read> agents: array<vec4f>;
 @group(0) @binding(2) var<uniform> tasks: Tasks;
 
+// The name intro's lasers (intro.ts): from under each robot to where it's
+// etching (x0, y0, x1, y1, px), and colour + strength.
+struct Beams {
+  line: array<vec4f, 8>,
+  tint: array<vec4f, 8>,
+}
+
+@group(0) @binding(3) var<uniform> beams: Beams;
+
 struct Varyings {
   @builtin(position) position: vec4f,
   // Local position: robot units (a tenth of its height) for agents, pixels for tasks.
@@ -244,4 +253,51 @@ fn fs_tasks(in: Varyings) -> @location(0) vec4f {
 
   let a = idle + pulse;
   return vec4f(in.color * a, min(a, 1.0));
+}
+
+// A laser from a robot down onto the name: a one-pixel white-hot core in a
+// tight coloured glow, brightest where it lands, with a flickering spark there.
+@vertex
+fn vs_beams(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> Varyings {
+  let line = beams.line[ii];
+  let span = line.zw - line.xy;
+  let len = max(length(span), 1.0);
+  let dir = span / len;
+  let across = vec2f(-dir.y, dir.x);
+  let corner = cornerOf(vi);
+  // Padded past the landing point for the spark.
+  let local = vec2f(mix(-4.0, len + 14.0, corner.x * 0.5 + 0.5), corner.y * 14.0);
+
+  var out: Varyings;
+  out.position = select(vec4f(0.0), toClip(line.xy + dir * local.x + across * local.y), beams.tint[ii].w > 0.001);
+  out.local = local;
+  out.color = beams.tint[ii].rgb;
+  out.alpha = beams.tint[ii].w;
+  out.index = ii;
+  out.thrust = len;
+  out.tint = vec4f(0.0);
+  out.exhaust = vec3f(0.0, 1.0, 1.0);
+  out.scan = 0.0;
+  return out;
+}
+
+@fragment
+fn fs_beams(in: Varyings) -> @location(0) vec4f {
+  let along = in.local.x;
+  let off = abs(in.local.y);
+  let len = in.thrust;
+
+  let core = exp(-off * off / 0.3);
+  let glow = exp(-off / 2.0) * 0.45;
+  let shaft = (core + glow) * smoothstep(-3.0, 3.0, along) * (1.0 - smoothstep(len - 0.5, len + 0.5, along)) * mix(0.35, 1.0, clamp(along / len, 0.0, 1.0));
+
+  let d = length(vec2f(along - len, in.local.y));
+  let flicker = 0.8 + 0.2 * sin(view.frame.w * 47.0 + f32(in.index) * 2.1);
+  let spark = (exp(-d * d / 3.0) * 1.6 + exp(-d / 4.0) * 0.6) * flicker;
+
+  let white = core * 0.7 + exp(-d * d / 2.0);
+  let color = mix(in.color * 1.25 + vec3f(0.1), vec3f(1.0), clamp(white, 0.0, 1.0));
+  let a = clamp((shaft + spark) * in.alpha, 0.0, 1.0);
+  if (a <= 0.003) { discard; }
+  return vec4f(color * a, a);
 }

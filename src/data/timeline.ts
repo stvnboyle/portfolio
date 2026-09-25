@@ -2,7 +2,7 @@ import { education, roles, type Engagement } from "./profile";
 
 /**
  * The career as a branch graph, newest first like `git log --graph`.
- * Three lanes: work, study, and HelloWorld Technologies running alongside work.
+ * Three lanes: work, study, and HelloWorld Technologies Ltd running alongside work.
  */
 export const LANES = [
   { id: "work", label: "work", tone: "#ededed" },
@@ -35,7 +35,7 @@ const role = (company: string) => {
 };
 
 const hedgehog = role("hedgehog lab");
-const helloworld = role("HelloWorld Technologies");
+const helloworld = role("HelloWorld Technologies Ltd");
 const lookers = role("Lookers");
 const placement = role("Mid-sized Software Agency");
 
@@ -119,13 +119,22 @@ export const TIMELINE: TimelineEvent[] = [
     stack: placement.stack,
   },
   {
+    id: "switched",
+    lane: "study",
+    ref: "switched",
+    date: "2014",
+    title: "BA (Hons) Computer Science",
+    org: education.school,
+    summary: "Switched course from Computer Forensics to Computer Science, soon after starting.",
+  },
+  {
     id: "started",
     lane: "study",
     ref: "started",
     date: "2014",
-    title: "BA (Hons) Computer Science",
+    title: "BA (Hons) Computer Forensics",
     org: education.school,
-    summary: "Started a computer science degree in Newcastle upon Tyne.",
+    summary: "Started a computer forensics degree in Newcastle upon Tyne.",
   },
 ];
 

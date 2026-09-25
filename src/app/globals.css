@@ -209,16 +209,45 @@ kbd {
   margin-right: auto;
 }
 
-/* Takes the colour of the swarm's latest task (--swarm-tone, set by the hero). */
+/* Blinks, and drifts steadily through the agents' colours. */
 .caret {
   display: inline-block;
+  flex: none;
   width: 0.6em;
   height: 1.15em;
   margin-left: 3px;
-  background: var(--swarm-tone, var(--fg));
-  box-shadow: 0 0 10px color-mix(in srgb, var(--swarm-tone, var(--fg)) 55%, transparent);
-  animation: caret-blink 1.1s steps(1) infinite;
-  transition: background 0.5s var(--ease), box-shadow 0.5s var(--ease);
+  background: var(--glow-3);
+  animation:
+    caret-blink 1.1s steps(1) infinite,
+    caret-colour 12s linear infinite;
+}
+
+@keyframes caret-colour {
+  0%,
+  100% {
+    background: #2a7aff;
+    box-shadow: 0 0 10px rgb(42 122 255 / 0.55);
+  }
+  17% {
+    background: #9450ff;
+    box-shadow: 0 0 10px rgb(148 80 255 / 0.55);
+  }
+  33% {
+    background: #ff3d99;
+    box-shadow: 0 0 10px rgb(255 61 153 / 0.55);
+  }
+  50% {
+    background: #1aebd1;
+    box-shadow: 0 0 10px rgb(26 235 209 / 0.55);
+  }
+  67% {
+    background: #ff9e1f;
+    box-shadow: 0 0 10px rgb(255 158 31 / 0.55);
+  }
+  83% {
+    background: #4dff73;
+    box-shadow: 0 0 10px rgb(77 255 115 / 0.55);
+  }
 }
 
 @keyframes caret-blink {
@@ -372,6 +401,60 @@ kbd {
   letter-spacing: -0.06em;
   font-weight: 500;
   margin-bottom: 22px;
+}
+
+/*
+ * The name's entrance (gfx/intro.ts): hidden until two robots weld it in with
+ * lasers from either end. Each letter fills along --angle up to --fill behind
+ * a white-hot edge, in its laser's colour (--hot), and cools to white
+ * (--cool). If the intro never starts (no WebGPU, slow start, reduced
+ * motion), the name fades in by itself.
+ */
+.hero:not([data-field="unsupported"])[data-intro="pending"] .hero__name,
+.hero[data-intro="etching"] .hero__name,
+.hero:not([data-field="unsupported"])[data-intro="pending"] .hero__name [data-g],
+.hero[data-intro="etching"] .hero__name [data-g] {
+  color: transparent;
+}
+
+/* Hover lighting (GlowHeadings) waits until the name's finished. */
+.hero:not([data-field="unsupported"])[data-intro="pending"] .hero__name [data-g],
+.hero[data-intro="etching"] .hero__name [data-g] {
+  --heat: 0 !important;
+  --mix: 0 !important;
+}
+
+.hero[data-intro="etching"] .hero__name [data-g] {
+  background: linear-gradient(
+    var(--angle, 90deg),
+    color-mix(in srgb, var(--hot, #fff) calc((1 - var(--cool, 0)) * 100%), var(--fg)) calc(var(--fill, 0) * 130% - 30%),
+    #fff calc(var(--fill, 0) * 130% - 8%),
+    transparent calc(var(--fill, 0) * 130%)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 calc((1 - var(--cool, 1)) * 9px) var(--hot, transparent));
+}
+
+.hero:not([data-field="unsupported"])[data-intro="pending"] .hero__name,
+.hero:not([data-field="unsupported"])[data-intro="pending"] .hero__name [data-g] {
+  animation: name-fallback 0.6s var(--ease) 2.2s forwards;
+}
+
+@keyframes name-fallback {
+  to {
+    color: var(--fg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero[data-intro] .hero__name,
+  .hero[data-intro] .hero__name [data-g] {
+    color: var(--fg);
+    background: none;
+    filter: none;
+    animation: none;
+  }
 }
 
 .hero__tagline {
@@ -632,6 +715,7 @@ kbd {
 .projects {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  align-items: start;
   gap: 16px;
 }
 
@@ -670,9 +754,40 @@ kbd {
   line-height: 1.75;
 }
 
+/* The highlights, folded away until asked for. */
+.project__more summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  cursor: pointer;
+  list-style: none;
+  transition: color 0.2s var(--ease);
+}
+
+.project__more summary::-webkit-details-marker {
+  display: none;
+}
+
+.project__more summary::before {
+  content: "+";
+  color: var(--tone);
+}
+
+.project__more[open] summary::before {
+  content: "−";
+}
+
+.project__more summary:hover {
+  color: var(--fg);
+}
+
 .project__points {
   display: grid;
   gap: 6px;
+  margin-top: 12px;
   font-size: var(--text-sm);
   color: var(--fg-dim);
 }
@@ -1925,4 +2040,441 @@ kbd {
   .caret {
     animation: none !important;
   }
+}
+
+/* ===========================================================================
+   Writing: a post pulled in from Medium (/writing/[slug])
+   =========================================================================== */
+
+.post-page {
+  --tone: var(--glow-4);
+  --measure: 70ch;
+}
+
+/* A slim bar: brand, the file path you're reading, and the way back. */
+.post-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgb(10 10 11 / 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.post-bar__inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: var(--max-w);
+  height: var(--nav-h);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.post-bar__crumb {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.post-bar .nav__brand {
+  margin-right: 0;
+}
+
+.post-bar__path {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.post-bar__back {
+  margin-left: auto;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  white-space: nowrap;
+  transition: color 0.2s var(--ease);
+}
+
+.post-bar__back:hover {
+  color: var(--fg);
+}
+
+/* Reading progress: a line in the post's colour, with a robot at its leading edge. */
+.progress {
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 1px;
+}
+
+.progress__bar {
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 30%, transparent), var(--tone));
+  box-shadow: 0 0 8px var(--tone);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.progress__bot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -13px;
+  width: 100%;
+  height: 26px;
+  pointer-events: none;
+}
+
+/* The top of the post, centred: path, title, one line of metadata, tags. */
+.article__head {
+  display: grid;
+  justify-items: center;
+  padding-top: clamp(48px, 9vh, 96px);
+  padding-bottom: clamp(40px, 6vh, 64px);
+  text-align: center;
+}
+
+.article__cmd {
+  margin-top: 18px;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.article__cmd span {
+  color: var(--tone);
+}
+
+.article__title {
+  max-width: 30ch;
+  margin-block: 14px 22px;
+  font-size: clamp(1.9rem, 5vw, 3.2rem);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+
+.article__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+/* The original on Medium: a quiet icon that brightens and lifts, like the site's other links. */
+.article__source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  color: var(--fg-muted);
+  transition: color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.article__source:hover,
+.article__source:focus-visible {
+  color: var(--fg);
+}
+
+.article__source svg {
+  transition: transform 0.2s var(--ease);
+}
+
+.article__source:hover svg {
+  transform: rotate(-12deg);
+}
+
+.article__tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  margin-top: 16px;
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--tone) 75%, var(--fg-dim));
+}
+
+.article__layout {
+  display: grid;
+  gap: 48px;
+}
+
+/* Let wide images and code shrink or scroll inside the column instead of stretching it. */
+.article__layout > * {
+  min-width: 0;
+}
+
+@media (min-width: 1100px) {
+  .article__layout {
+    grid-template-columns: 200px minmax(0, var(--measure));
+    justify-content: space-between;
+  }
+}
+
+.article__aside {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .article__aside {
+    display: block;
+  }
+}
+
+.toc {
+  position: sticky;
+  top: calc(var(--nav-h) + 32px);
+  font-size: var(--text-xs);
+}
+
+.toc__label {
+  margin-bottom: 12px;
+  color: var(--fg-muted);
+}
+
+.toc ol {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
+.toc li[data-level="3"] {
+  padding-left: 12px;
+}
+
+.toc a {
+  display: block;
+  color: var(--fg-muted);
+  line-height: 1.5;
+  transition: color 0.2s var(--ease);
+}
+
+.toc a:hover,
+.toc li[data-active] a {
+  color: var(--fg);
+}
+
+.toc li[data-active] {
+  position: relative;
+}
+
+.toc li[data-active]::before {
+  content: "";
+  position: absolute;
+  left: -13px;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--tone);
+  box-shadow: 0 0 6px var(--tone);
+}
+
+/* The post body. Headings carry markdown's own marks. */
+.prose {
+  max-width: var(--measure);
+  font-size: var(--text-base);
+  line-height: 1.85;
+  color: var(--fg-dim);
+}
+
+.prose > * + * {
+  margin-top: 1.1em;
+}
+
+.prose h2,
+.prose h3 {
+  margin-top: 2.2em;
+  color: var(--fg);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  scroll-margin-top: calc(var(--nav-h) + 24px);
+}
+
+.prose h2 {
+  font-size: var(--text-title);
+}
+
+.prose h3 {
+  font-size: var(--text-lg);
+}
+
+.prose h2::before,
+.prose h3::before {
+  color: var(--tone);
+  opacity: 0.7;
+}
+
+.prose h2::before {
+  content: "## ";
+}
+
+.prose h3::before {
+  content: "### ";
+}
+
+.prose strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.prose a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--tone) 60%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.2s var(--ease);
+}
+
+.prose a:hover {
+  text-decoration-color: var(--tone);
+}
+
+.prose ul,
+.prose ol {
+  display: grid;
+  gap: 0.4em;
+  padding-left: 1.4em;
+}
+
+.prose ul {
+  list-style: none;
+}
+
+.prose ul li {
+  position: relative;
+}
+
+.prose ul li::before {
+  content: "›";
+  position: absolute;
+  left: -1.1em;
+  color: var(--tone);
+}
+
+.prose ol {
+  list-style: decimal;
+}
+
+.prose ol li::marker {
+  color: var(--tone);
+}
+
+/* Quotes carry markdown's ">" in the post's colour, like the headings' "##". */
+.prose blockquote {
+  position: relative;
+  padding-left: 1.6em;
+  font-size: var(--text-lg);
+  line-height: 1.7;
+  color: var(--fg);
+}
+
+.prose blockquote::before {
+  content: ">";
+  position: absolute;
+  left: 0;
+  color: var(--tone);
+  opacity: 0.7;
+}
+
+.prose pre {
+  overflow-x: auto;
+  padding: 18px 20px;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--fg);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  tab-size: 2;
+}
+
+.prose figure {
+  margin-block: 2em;
+}
+
+.prose img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.prose figcaption {
+  margin-top: 10px;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+.prose .gif img {
+  max-width: min(100%, 420px);
+}
+
+.prose .embed a {
+  font-size: var(--text-sm);
+}
+
+.article__end {
+  display: grid;
+  gap: 28px;
+  max-width: var(--measure);
+  padding-block: 24px 96px;
+}
+
+/* One column: the body and its end sit centred in the page. */
+@media (max-width: 1099px) {
+  .prose,
+  .article__end {
+    width: 100%;
+    margin-inline: auto;
+  }
+}
+
+/* Under the body, in the text column. */
+@media (min-width: 1100px) {
+  .article__end {
+    grid-column: 2;
+  }
+}
+
+.article__more span {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+}
+
+.article__more {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+}
+
+.article__more a {
+  display: grid;
+  gap: 6px;
+  padding: 16px 0;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  border-top: 1px solid var(--line);
+  transition: color 0.2s var(--ease);
+}
+
+.article__more a:hover {
+  color: var(--fg);
+}
+
+.article__more a[data-newer] {
+  text-align: right;
 }

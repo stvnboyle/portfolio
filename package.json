@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "npx serve out",
     "typecheck": "tsc --noEmit",
-    "check:shaders": "vgpu check src/gfx/sky.wgsl --require-validation && vgpu check src/gfx/agents.wgsl --require-validation && vgpu check src/gfx/agents-render.wgsl --require-validation && vgpu check src/gfx/timeline-light.wgsl --require-validation"
+    "posts:snapshot": "curl -sf -A Mozilla/5.0 https://medium.com/feed/@stevenboyle64 -o src/data/medium-feed.xml",
+    "check:shaders": "vgpu check src/gfx/sky.wgsl --require-validation && vgpu check src/gfx/agents.wgsl --require-validation && vgpu check src/gfx/agents-render.wgsl --require-validation && vgpu check src/gfx/timeline-light.wgsl --require-validation && vgpu check src/gfx/trails.wgsl --require-validation"
   },
   "dependencies": {
     "geist": "^1.7.2",

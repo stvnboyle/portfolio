@@ -37,7 +37,7 @@ export function Timeline() {
               </span>
             ))}
           </p>
-          <p className="commit__summary">Leading teams at hedgehog lab, and building HelloWorld Technologies on the side.</p>
+          <p className="commit__summary">Leading teams at hedgehog lab, and building HelloWorld Technologies Ltd on the side.</p>
         </div>
       </li>
 

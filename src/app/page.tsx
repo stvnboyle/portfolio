@@ -28,7 +28,7 @@ export default async function Page() {
         <About />
         <Career />
         <Projects />
-        <Principles />
+        {/* Principles is hidden for now; the section and its data are kept for later. */}
         <Writing articles={articles} />
       </main>
 
@@ -46,14 +46,6 @@ function commands(articles: Article[]): Command[] {
     { id: "go-about", group: "go to", label: "about", hint: "#about", href: "#about" },
     { id: "go-timeline", group: "go to", label: "timeline", hint: "#timeline", href: "#timeline" },
     { id: "go-projects", group: "go to", label: "projects", hint: "#projects", href: "#projects" },
-    { id: "go-principles", group: "go to", label: "principles", hint: "#principles", href: "#principles" },
-    ...EXPERIENCES.map((e) => ({
-      id: `go-${e.id}`,
-      group: "go to",
-      label: e.title.toLowerCase(),
-      hint: `#${e.id}`,
-      href: `#${e.id}`,
-    })),
     { id: "go-writing", group: "go to", label: "writing", hint: "#writing", href: "#writing" },
     { id: "go-contact", group: "go to", label: "contact", hint: "#contact", href: "#contact" },
     { id: "copy-email", group: "contact", label: "copy email address", hint: profile.email, copy: profile.email },
@@ -65,8 +57,7 @@ function commands(articles: Article[]): Command[] {
       group: "posts",
       label: a.title.toLowerCase(),
       hint: `${a.readingMinutes} min`,
-      href: a.url,
-      external: true,
+      href: `/writing/${a.slug}`,
     })),
   ];
 }
@@ -75,8 +66,8 @@ function Nav({ commands }: { commands: Command[] }) {
   return (
     <header className="nav">
       <div className="nav__inner">
-        <a className="nav__brand" href="#top" aria-label="boyle.dev, back to top">
-          boyle.dev
+        <a className="nav__brand" href="#top" aria-label="stevenboyle.dev, back to top">
+          stevenboyle.dev
           <i className="caret" aria-hidden />
         </a>
         <nav className="nav__links" aria-label="Sections">
@@ -86,9 +77,6 @@ function Nav({ commands }: { commands: Command[] }) {
           </a>
           <a data-drop href="#projects">
             projects
-          </a>
-          <a data-drop href="#principles">
-            principles
           </a>
           <a data-drop href="#writing">
             writing
@@ -133,12 +121,11 @@ function About() {
 
           <div className="about__copy" data-reveal>
             <p>{profile.intro}</p>
-            <p>{profile.intro2}</p>
 
             <dl className="about__facts">
               <div>
                 <dt>now</dt>
-                <dd>Tech lead &amp; engineering manager at hedgehog lab · founder, HelloWorld Technologies</dd>
+                <dd>Tech lead &amp; engineering manager at hedgehog lab · founder, HelloWorld Technologies Ltd</dd>
               </div>
               <div>
                 <dt>studied</dt>
@@ -188,12 +175,15 @@ function Projects() {
               </p>
               <h3 className="project__name">{project.name}</h3>
               <p className="project__summary">{project.summary}</p>
-              <ul className="project__points">
-                {project.points.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ul>
               <p className="project__stack">{project.stack.join(" / ")}</p>
+              <details className="project__more">
+                <summary>{`${project.points.length} highlights`}</summary>
+                <ul className="project__points">
+                  {project.points.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              </details>
               {project.link ? (
                 <a className="project__link" href={project.link} target="_blank" rel="noreferrer">
                   visit {new URL(project.link).hostname} <Arrow />
@@ -273,13 +263,13 @@ function Writing({ articles }: { articles: Article[] }) {
       <div className="shell">
         <SectionHead name="writing">
           Notes on teams, architecture and shipping.
-          <span> Published on Medium.</span>
+          <span> Also on Medium.</span>
         </SectionHead>
 
         <ul className="posts">
           {articles.map((article) => (
             <li key={article.url} data-reveal>
-              <a className="post" href={article.url} target="_blank" rel="noreferrer">
+              <a className="post" href={`/writing/${article.slug}`}>
                 <span className="post__title">{article.title}</span>
                 <span className="post__meta">
                   {article.date} · {article.readingMinutes} min

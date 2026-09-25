@@ -39,6 +39,14 @@ struct Swarm {
   spawnAt: vec4f,
   // Pointer x, y (px) and presence (0..1).
   pointer: vec4f,
+  // The name's intro crew (intro.ts): the first `introCount` agents are placed
+  // here each step (x, y, vx, vy) with this tint, then released to the flock.
+  introCount: u32,
+  introAt: array<vec4f, 8>,
+  introTint: array<vec4f, 8>,
+  // The pheromone trail grid (trails.wgsl): width, height (cells), deposit
+  // fixed-point scale, -.
+  trailGrid: vec4f,
 }
 
 // x, y (px), working radius (px), strength (0..1, 0 = inactive)
@@ -73,6 +81,8 @@ struct Exits {
 // A latch for letting one agent out of the bottom: the CPU opens it by writing
 // 0, the first agent to reach the edge takes it, and it stays shut until reopened.
 @group(0) @binding(6) var<storage, read_write> gate: atomic<u32>;
+// Pheromone trails: fixed-point rgb per grid cell, summed by every agent each step.
+@group(0) @binding(7) var<storage, read_write> deposit: array<atomic<u32>>;
 
 const EMPTY: f32 = 0.0;
 const IN_HERO: f32 = 1.0;
@@ -80,6 +90,19 @@ const LEAVING: f32 = 2.0;
 
 fn hash(x: f32) -> f32 {
   return fract(sin(x * 12.9898 + swarm.seed * 78.233) * 43758.5453);
+}
+
+// Leaves this step's mark in the trail grid. Only agents carrying a task's
+// colour really mark it (idle ones barely), so the trails trace the work:
+// crews orbiting tasks, carriers handing off, colour scattering when one ends.
+fn lay(p: vec2f, tint: vec4f) {
+  let cell = vec2i(floor(p / swarm.world * swarm.trailGrid.xy));
+  if (cell.x < 0 || cell.y < 0 || cell.x >= i32(swarm.trailGrid.x) || cell.y >= i32(swarm.trailGrid.y)) { return; }
+  let i = u32(cell.y * i32(swarm.trailGrid.x) + cell.x) * 3u;
+  let mark = mix(vec3f(0.6, 0.63, 0.72) * 0.0015, tint.rgb * 0.05, tint.w * tint.w) * swarm.trailGrid.z;
+  atomicAdd(&deposit[i], u32(mark.r));
+  atomicAdd(&deposit[i + 1u], u32(mark.g));
+  atomicAdd(&deposit[i + 2u], u32(mark.b));
 }
 
 fn write(i: u32, motion: vec4f, tint: vec4f, info: vec4f) {
@@ -133,6 +156,12 @@ fn leave(i: u32, me: vec4f, tint: vec4f, info: vec4f) {
 fn step(@builtin(global_invocation_id) id: vec3u) {
   let i = id.x;
   if (i >= swarm.capacity) { return; }
+  if (i < swarm.introCount) {
+    write(i, swarm.introAt[i], swarm.introTint[i], vec4f(IN_HERO, -1.0, 0.0, 0.0));
+    lay(swarm.introAt[i].xy, swarm.introTint[i]);
+    atomicAdd(&counts.alive, 1u);
+    return;
+  }
   let me = current[3u * i];
   var tint = current[3u * i + 1u];
   var info = current[3u * i + 2u];
@@ -255,5 +284,6 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
   }
 
   atomicAdd(&counts.alive, 1u);
+  lay(np, tint);
   write(i, vec4f(np, v), tint, info);
 }

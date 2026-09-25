@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en-GB" className={GeistMono.variable}>
       <body>
-        <a className="skip-link" href="#principles">
+        <a className="skip-link" href="#top">
           Skip to content
         </a>
         {children}

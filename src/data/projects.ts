@@ -13,26 +13,24 @@ export type Project = {
   link?: string;
 };
 
-const helloworld = roles.find((r) => r.company === "HelloWorld Technologies")!;
+const helloworld = roles.find((r) => r.company === "HelloWorld Technologies Ltd")!;
 
 export const PROJECTS: Project[] = [
   {
     id: "gitgood",
     name: "gitgood.io",
-    meta: ["HelloWorld Technologies", helloworld.title, helloworld.period],
-    summary:
-      "A platform driving code-review engagement across distributed teams. Built and architected solo, outside working hours, as sole technical founder.",
+    meta: [helloworld.company, helloworld.title, helloworld.period],
+    summary: "Code-review engagement for distributed teams, built solo as sole technical founder.",
     points: helloworld.points,
     stack: helloworld.stack ?? [],
     tone: "#ff3d99",
     link: "https://gitgood.io",
   },
   {
-    id: "boyle-dev",
-    name: "boyle.dev",
+    id: "stevenboyle-dev",
+    name: "stevenboyle.dev",
     meta: ["This site"],
-    summary:
-      "A static Next.js site with a WebGPU agent swarm in the hero: flocking, task crews and handoffs all computed on the GPU with vgpu, with the counts read back live.",
+    summary: "A static Next.js site whose hero is a WebGPU agent swarm, simulated on the GPU with vgpu.",
     points: [
       "Agent swarm simulated in WGSL compute shaders, rendered as instanced SDF robots",
       "GPU → CPU feedback for live telemetry: agents, crews working, tasks done",
