@@ -2,6 +2,8 @@ export const profile = {
   name: "Steven Boyle",
   fullName: "Steven Buchanan Boyle",
   handle: "stevenboyle",
+  /** The site's canonical address; www and the old .vercel.app address redirect here (vercel.json). */
+  site: "https://stevenboyle.dev",
   roles: ["Engineer", "Architect", "Founder"],
   location: "Newcastle upon Tyne, UK",
   email: "iboyleyv1@gmail.com",

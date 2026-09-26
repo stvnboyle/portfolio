@@ -7,6 +7,8 @@ const title = `${profile.fullName} — ${profile.roles.join(" / ")}`;
 const description = `${profile.roles.join(", ")} in ${profile.location}. ${profile.tagline}`;
 
 export const metadata: Metadata = {
+  // Resolves relative URLs in metadata (Open Graph, canonical) against the real domain.
+  metadataBase: new URL(profile.site),
   title,
   description,
   applicationName: "Steven Boyle",
@@ -21,9 +23,11 @@ export const metadata: Metadata = {
     "Newcastle upon Tyne",
     "agentic engineering",
   ],
+  alternates: { canonical: "/" },
   openGraph: {
     title,
     description,
+    url: "/",
     type: "profile",
     locale: "en_GB",
     siteName: profile.fullName,
@@ -55,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "@context": "https://schema.org",
               "@type": "Person",
               name: profile.fullName,
+              url: profile.site,
               jobTitle: profile.roles.join(" / "),
               email: `mailto:${profile.email}`,
               address: { "@type": "PostalAddress", addressLocality: profile.location },

@@ -28,7 +28,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description: article.excerpt,
     // Medium has the original; this copy points search engines at it.
     alternates: { canonical: article.url },
-    openGraph: { title: article.title, description: article.excerpt, type: "article", publishedTime: article.iso },
+    openGraph: {
+      title: article.title,
+      description: article.excerpt,
+      url: `/writing/${article.slug}`,
+      type: "article",
+      publishedTime: article.iso,
+    },
   };
 }
 

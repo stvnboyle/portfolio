@@ -1,7 +1,9 @@
-# boyle.dev — Steven Boyle's portfolio
+# stevenboyle.dev — Steven Boyle's portfolio
 
-Next.js (App Router) static export, deployed to Vercel project `steven-boyle-portfolio`
-(https://steven-boyle-portfolio.vercel.app). Private repo `stevensGIT/portfolio`, trunk is `main`.
+Next.js (App Router) static export at https://stevenboyle.dev (bought through Vercel), deployed to
+Vercel project `steven-boyle-portfolio`. `www.stevenboyle.dev` and the old
+`steven-boyle-portfolio.vercel.app` 308-redirect to it (host rules in `vercel.json`); `profile.site`
+is the canonical URL used for metadata. Private repo `stevensGIT/portfolio`, trunk is `main`.
 Package manager is **npm** (package-lock.json).
 
 ## Design direction
@@ -65,5 +67,5 @@ screenshot desktop (1440×900) and mobile (390×844) with headless Chromium
 `~/git-good/node_modules/.pnpm`). Headless Chrome caps at 30fps — that isn't a perf regression.
 
 Deploys: the Vercel project is git-connected to `stevensGIT/portfolio`. Pushing to `main` deploys
-production; other branches get preview URLs. After pushing, confirm the live footer shows the new
+production; other branches get preview URLs. After pushing, confirm the footer at https://stevenboyle.dev shows the new
 `rev`. `vercel deploy --prod --yes` remains a manual fallback.
