@@ -2,9 +2,21 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "redirects": [
     {
+      "source": "/",
+      "has": [{ "type": "host", "value": "www.stevenboyle.dev" }],
+      "destination": "https://stevenboyle.dev/",
+      "permanent": true
+    },
+    {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "www.stevenboyle.dev" }],
       "destination": "https://stevenboyle.dev/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "steven-boyle-portfolio.vercel.app" }],
+      "destination": "https://stevenboyle.dev/",
       "permanent": true
     },
     {

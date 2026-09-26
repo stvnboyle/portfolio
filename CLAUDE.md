@@ -2,7 +2,8 @@
 
 Next.js (App Router) static export at https://stevenboyle.dev (bought through Vercel), deployed to
 Vercel project `steven-boyle-portfolio`. `www.stevenboyle.dev` and the old
-`steven-boyle-portfolio.vercel.app` 308-redirect to it (host rules in `vercel.json`); `profile.site`
+`steven-boyle-portfolio.vercel.app` 308-redirect to it (host rules in `vercel.json`; `/:path*` doesn't
+match the bare root there, so `/` has its own rule per host); `profile.site`
 is the canonical URL used for metadata. Private repo `stevensGIT/portfolio`, trunk is `main`.
 Package manager is **npm** (package-lock.json).
 
