@@ -61,7 +61,8 @@ export function Hero() {
             rel="noopener noreferrer"
             aria-label="Boids, Craig Reynolds' flocking model (opens in a new tab)"
           >
-            vᵢ += a·sepᵢ + b·alignᵢ + c·cohᵢ + d·(tₖ − xᵢ)
+            {/* As agents.wgsl steers them: boids plus an orbit round the nearest task. */}
+            v̇ᵢ = a·sepᵢ + b·alignᵢ + c·cohᵢ + d·orbitₖ(xᵢ)
             <span aria-hidden> ↗</span>
           </a>
           <span aria-hidden>{unsupported ? "static preview" : "boids, reynolds ’87 · click to post a task"}</span>
