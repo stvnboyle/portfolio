@@ -74,6 +74,8 @@ export const TIMELINE: TimelineEvent[] = [
     title: "Senior Software Engineer",
     org: hedgehog.company,
     period: "2021 — 2022",
+    summary:
+      "Began influencing decisions across the frontend department: state management, data fetching and server-state caching with React Query. Pioneered the company's adoption of Next.js.",
   },
   {
     id: "hedgehog-engineer",
@@ -83,6 +85,8 @@ export const TIMELINE: TimelineEvent[] = [
     title: "Software Engineer",
     org: hedgehog.company,
     period: "Jan 2019 — 2021",
+    summary:
+      "Built features in React for multiple customers, and pioneered the team's adoption of hooks, moving from class components to function components, custom hooks and the Context API.",
   },
   {
     id: "graduated",
@@ -119,22 +123,13 @@ export const TIMELINE: TimelineEvent[] = [
     stack: placement.stack,
   },
   {
-    id: "switched",
-    lane: "study",
-    ref: "switched",
-    date: "2014",
-    title: "BA (Hons) Computer Science",
-    org: education.school,
-    summary: "Switched course from Computer Forensics to Computer Science, soon after starting.",
-  },
-  {
     id: "started",
     lane: "study",
     ref: "started",
     date: "2014",
-    title: "BA (Hons) Computer Forensics",
+    title: "BA (Hons) Computer Science",
     org: education.school,
-    summary: "Started a computer forensics degree in Newcastle upon Tyne.",
+    summary: "Started a computer science degree in Newcastle upon Tyne.",
   },
 ];
 

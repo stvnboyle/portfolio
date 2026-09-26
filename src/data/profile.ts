@@ -7,7 +7,12 @@ export const profile = {
   email: "iboyleyv1@gmail.com",
   tagline: "I like building things and figuring out the tricky problems along the way.",
   intro:
-    "I've grown from IC to leading engineering teams, owning the whole path from architecture to delivery on complex platforms. Lately that means agentic engineering: using AI to ship at pace without dropping the quality bar.",
+    "I've spent the last decade building software for the web, growing from IC to leading engineering teams and owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
+  /** The about section's paragraphs; the first is also the short intro above. */
+  about: [
+    "I've spent the last decade building software for the web, growing from IC to leading engineering teams and owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
+    "I care about how software feels at every end of it: the developer experience of the team building it, the agent experience of the AI working alongside them, and the user experience of the people relying on it. Lately that means agentic engineering, shipping at pace with AI without dropping the quality bar.",
+  ],
   links: {
     linkedin: "https://linkedin.com/in/steven-buchanan-boyle-114384139",
     medium: "https://medium.com/@stevenboyle64",
@@ -130,7 +135,7 @@ export const roles: Role[] = [
     end: "2019-01",
     location: "Newcastle upon Tyne",
     summary:
-      "Offered the role immediately prior to graduating. Supported the BI team and maintained the systems keeping stock data flowing across brand and third-party websites.",
+      "Offered the role immediately prior to graduating. Built multi-dimensional databases for rapid reporting across dealerships and sales, supported the BI team, and maintained the systems keeping stock data flowing across brand and third-party websites.",
     points: [
       "Developed multi-dimensional databases for rapid reporting across dealerships, sales and internal products",
       "Maintained legacy systems and CRON data feeds updating stock across third-party and brand websites",
@@ -146,7 +151,7 @@ export const roles: Role[] = [
     start: "2016",
     end: "2017",
     summary:
-      "Third-year placement supporting a pre-tenancy software platform used by hundreds of estate agents across the UK. First hands-on introduction to the SDLC and how servers, clients and databases fit together.",
+      "Third-year placement on a pre-tenancy software platform used by hundreds of estate agents across the UK. My first time shipping to production, and a hands-on introduction to the SDLC and how servers, clients and databases fit together.",
     points: [
       "Built user-facing features while being actively mentored",
       "Handled live support calls and bug fixes on physical production servers",
@@ -163,7 +168,7 @@ export const education = {
   end: "2018-06",
   location: "Newcastle upon Tyne",
   detail:
-    "Covered web technologies, object-oriented programming with Java, relational databases in SQL, embedded systems with C/C++, artificial intelligence and machine learning.",
+    "Covered topics such as web technologies, object-oriented programming in Java, relational databases and SQL, embedded systems in C and C++, and artificial intelligence and machine learning.",
   dissertation:
     "“Symbiosis” — a web platform connecting professional experts with clients seeking domain expertise via real-time 1:1 messaging, with dashboards and analytics to gamify the experience.",
 };
@@ -208,7 +213,7 @@ export const skillGroups = [
 export const hobbies = [
   "Big gym goer",
   "Deep nature breakaways and walking trails",
-  "Dystopian thrillers on Netflix",
+  "Dystopian thrillers",
   "Walkies",
   "Tinkering with new technologies",
 ];

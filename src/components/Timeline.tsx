@@ -37,7 +37,10 @@ export function Timeline() {
               </span>
             ))}
           </p>
-          <p className="commit__summary">Leading teams at hedgehog lab, and building HelloWorld Technologies Ltd on the side.</p>
+          <p className="commit__summary">
+            Building a GenAI EdTech platform, with a core focus on infrastructure and agentic engineering, developing across
+            the stack. Alongside that, managing engineers: mentoring them and supporting their career development.
+          </p>
         </div>
       </li>
 

@@ -130,7 +130,9 @@ function About() {
           </figure>
 
           <div className="about__copy">
-            <p>{profile.intro}</p>
+            {profile.about.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
 
             <dl className="about__facts">
               <div>
@@ -253,8 +255,8 @@ function Career() {
     <section className="section" id="timeline">
       <div className="shell">
         <SectionHead name="timeline">
-          From a computer science degree to leading teams.
-          <span> Newest first.</span>
+          Ten years of commits, from intern to tech lead.
+          <span> Newest first, like git log.</span>
         </SectionHead>
         <div className="timeline-wrap">
           <TimelineLight />
