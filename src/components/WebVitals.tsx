@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Spinner } from "./Spinner";
 
 type Rating = "good" | "needs-improvement" | "poor";
 type Metric = { value: number; rating: Rating } | null;
@@ -80,9 +81,9 @@ export function WebVitals() {
   const show = (name: keyof Vitals, format: (v: number) => string) => {
     const metric = vitals[name];
     return (
-      <div key={name} data-rating={metric?.rating}>
+      <div key={name} data-metric={name} data-rating={metric?.rating}>
         <dt>{name}</dt>
-        <dd>{metric ? format(metric.value) : unsupported.includes(name) ? "n/a" : "—"}</dd>
+        <dd>{metric ? format(metric.value) : unsupported.includes(name) ? "n/a" : <Spinner label="" />}</dd>
       </div>
     );
   };

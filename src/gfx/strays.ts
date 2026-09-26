@@ -139,7 +139,7 @@ export class StrayLayer {
   };
 
   private draw(time: number) {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
     const w = window.innerWidth;
     const h = window.innerHeight;
     if (this.canvas.width !== Math.round(w * dpr) || this.canvas.height !== Math.round(h * dpr)) {

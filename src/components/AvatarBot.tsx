@@ -41,7 +41,7 @@ export function AvatarBot() {
     };
 
     const draw = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
       const size = canvas.clientWidth;
       if (canvas.width !== Math.round(size * dpr)) canvas.width = canvas.height = Math.round(size * dpr);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);

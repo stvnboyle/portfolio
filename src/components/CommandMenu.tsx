@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { seek } from "@/lib/seek";
 
 export type Command = {
   id: string;
@@ -67,7 +68,7 @@ export function CommandMenu({ commands }: { commands: Command[] }) {
     }
     close();
     if (command.external) window.open(command.href, "_blank", "noopener,noreferrer");
-    else window.location.href = command.href;
+    else if (!(command.href.startsWith("#") && seek(command.href))) window.location.href = command.href;
   };
 
   const onInputKey = (e: React.KeyboardEvent<HTMLInputElement>) => {

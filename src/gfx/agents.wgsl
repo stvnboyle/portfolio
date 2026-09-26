@@ -47,6 +47,10 @@ struct Swarm {
   // The pheromone trail grid (trails.wgsl): width, height (cells), deposit
   // fixed-point scale, -.
   trailGrid: vec4f,
+  // The name's formation (formation.ts): clock (s), when it bursts (s), -, -.
+  form: vec4f,
+  // Where it bursts from (x, y px), and the robots' scale once they've landed, -.
+  formCentre: vec4f,
 }
 
 // x, y (px), working radius (px), strength (0..1, 0 = inactive)
@@ -83,6 +87,8 @@ struct Exits {
 @group(0) @binding(6) var<storage, read_write> gate: atomic<u32>;
 // Pheromone trails: fixed-point rgb per grid cell, summed by every agent each step.
 @group(0) @binding(7) var<storage, read_write> deposit: array<atomic<u32>>;
+// The formation's points (formation.ts), two vec4s each: x, y (px), launch time (s), -; colour rgb, -.
+@group(0) @binding(8) var<storage, read> targets: array<vec4f>;
 
 const EMPTY: f32 = 0.0;
 const IN_HERO: f32 = 1.0;
@@ -152,6 +158,57 @@ fn leave(i: u32, me: vec4f, tint: vec4f, info: vec4f) {
   write(i, vec4f(p, v), faded, info);
 }
 
+// A robot in the name's formation. info.z is 1 + its point while it's
+// gathering, and -1 once the formation has burst; info.w is its drawn scale.
+// It flies in to its point when its launch time comes, shrinking as it lands,
+// and holds there. When the formation bursts it blows out from the centre and
+// is gone once it's off the canvas. Formation robots aren't counted in the
+// population and the flock ignores them.
+fn formation(i: u32, me: vec4f, tint: vec4f, info: vec4f) {
+  var p = me.xy;
+  var v = me.zw;
+  var colour = tint;
+  var flags = info;
+
+  if (flags.z > 0.5) {
+    let k = u32(flags.z - 1.0);
+    let point = targets[2u * k];
+    if (swarm.form.x >= swarm.form.y) {
+      let jitter = vec2f(hash(f32(i)) - 0.5, hash(f32(i) + 3.0) - 0.5) * 24.0;
+      v = normalize(p - swarm.formCentre.xy + jitter) * (240.0 + hash(f32(i) + 9.0) * 360.0);
+      flags.z = -1.0;
+    } else if (swarm.form.x >= point.z) {
+      let d = point.xy - p;
+      let dist = length(d);
+      // Fast, then slowing right onto the point.
+      let want = d / max(dist, 1e-3) * min(dist * 9.0, 1200.0);
+      v += (want - v) * min(1.0, swarm.dt * 12.0);
+      if (dist < 0.8) {
+        v = vec2f(0.0);
+        p = point.xy;
+      }
+      colour = vec4f(targets[2u * k + 1u].rgb, 1.0);
+      flags.w = mix(swarm.formCentre.z, 1.0, smoothstep(4.0, 90.0, dist));
+    } else {
+      // Waiting beyond the edge for its turn.
+      write(i, me, tint, info);
+      return;
+    }
+  } else {
+    // Blown out: carrying on, growing back to size, its colour fading.
+    flags.w = min(1.0, flags.w + swarm.dt * 2.0);
+    colour.w = max(0.0, colour.w - swarm.dt * 0.6);
+  }
+
+  p += v * swarm.dt;
+  if (flags.z < 0.0 && (p.x < -30.0 || p.x > swarm.world.x + 30.0 || p.y < -30.0 || p.y > swarm.world.y + swarm.apron)) {
+    write(i, vec4f(p, v), colour, vec4f(EMPTY, -1.0, 0.0, 0.0));
+    return;
+  }
+  lay(p, colour);
+  write(i, vec4f(p, v), colour, flags);
+}
+
 @compute @workgroup_size(64)
 fn step(@builtin(global_invocation_id) id: vec3u) {
   let i = id.x;
@@ -178,6 +235,10 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
     leave(i, me, tint, info);
     return;
   }
+  if (info.z != 0.0) {
+    formation(i, me, tint, info);
+    return;
+  }
 
   let p = me.xy;
   var v = me.zw;
@@ -188,8 +249,8 @@ fn step(@builtin(global_invocation_id) id: vec3u) {
   var seen = 0.0;
   for (var j = 0u; j < swarm.capacity; j++) {
     if (j == i) { continue; }
-    let life = current[3u * j + 2u].x;
-    if (life < 0.5 || life > 1.5) { continue; }
+    let them = current[3u * j + 2u];
+    if (them.x < 0.5 || them.x > 1.5 || them.z != 0.0) { continue; }
     let other = current[3u * j];
     let d = other.xy - p;
     let r2 = dot(d, d);

@@ -2,6 +2,7 @@ import { Hero } from "@/components/Hero";
 import { Enhancements } from "@/components/Enhancements";
 import { GlowHeadings } from "@/components/GlowHeadings";
 import { AvatarBot } from "@/components/AvatarBot";
+import { Host } from "@/components/Host";
 import { CommandMenu, type Command } from "@/components/CommandMenu";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { Timeline } from "@/components/Timeline";
@@ -66,8 +67,15 @@ function Nav({ commands }: { commands: Command[] }) {
   return (
     <header className="nav">
       <div className="nav__inner">
+        {/* A shell prompt: `$ stevenboyle.dev` at the top, `$ cd stevenboyle.dev/<section>` in a section,
+            the command and path typed out as you move (lib/seek.ts). */}
         <a className="nav__brand" href="#top" aria-label="stevenboyle.dev, back to top">
-          stevenboyle.dev
+          <span className="nav__prompt" aria-hidden>
+            $
+          </span>
+          <span className="nav__cmd" aria-hidden />
+          <Host />
+          <span className="nav__path" aria-hidden />
           <i className="caret" aria-hidden />
         </a>
         <nav className="nav__links" aria-label="Sections">
@@ -85,13 +93,15 @@ function Nav({ commands }: { commands: Command[] }) {
         </nav>
         <CommandMenu commands={commands} />
       </div>
+      {/* A light ray with a robot riding it while an in-page link travels (lib/seek.ts). */}
+      <canvas className="nav__ray" aria-hidden />
     </header>
   );
 }
 
 function SectionHead({ name, children }: { name: string; children: React.ReactNode }) {
   return (
-    <header className="section__head" data-reveal>
+    <header className="section__head">
       <p className="section__eyebrow">{`// ${name}`}</p>
       <h2 className="section__title">{children}</h2>
     </header>
@@ -108,7 +118,7 @@ function About() {
         </SectionHead>
 
         <div className="about">
-          <figure className="about__photo" data-reveal>
+          <figure className="about__photo">
             <span className="about__avatar">
               <img src="/me.jpg" alt="Steven Boyle" width={800} height={800} loading="lazy" decoding="async" />
               <AvatarBot />
@@ -119,7 +129,7 @@ function About() {
             </figcaption>
           </figure>
 
-          <div className="about__copy" data-reveal>
+          <div className="about__copy">
             <p>{profile.intro}</p>
 
             <dl className="about__facts">
@@ -165,7 +175,6 @@ function Projects() {
             <article
               key={project.id}
               className="project"
-              data-reveal
               style={{ "--tone": project.tone } as React.CSSProperties}
             >
               <p className="project__meta">
@@ -214,7 +223,6 @@ function Principles() {
               key={e.id}
               id={e.id}
               className="panel"
-              data-reveal
               style={{ "--tone": e.tone } as React.CSSProperties}
             >
               <div className="panel__copy">
@@ -268,7 +276,7 @@ function Writing({ articles }: { articles: Article[] }) {
 
         <ul className="posts">
           {articles.map((article) => (
-            <li key={article.url} data-reveal>
+            <li key={article.url}>
               <a className="post" href={`/writing/${article.slug}`}>
                 <span className="post__title">{article.title}</span>
                 <span className="post__meta">
@@ -301,19 +309,21 @@ function Footer({ rev }: { rev: string }) {
           <span> Say hello.</span>
         </SectionHead>
 
-        <a className="footer__command" href={`mailto:${profile.email}`}>
-          <span>$ mail</span>
-          {profile.email}
-        </a>
+        <div className="footer__commands">
+          <a className="footer__command" href={`mailto:${profile.email}`}>
+            <span>$ mail</span>
+            {profile.email}
+          </a>
+          {links.map(([label, href]) => (
+            <a key={href} className="footer__command footer__command--link" href={href} target="_blank" rel="noreferrer">
+              <span>$ open</span>
+              {label}
+              <Arrow />
+            </a>
+          ))}
+        </div>
 
         <div className="footer__row">
-          <nav className="footer__links" aria-label="Elsewhere">
-            {links.map(([label, href]) => (
-              <a key={href} href={href} target="_blank" rel="noreferrer">
-                {label}
-              </a>
-            ))}
-          </nav>
           <span className="footer__meta">
             rev {rev} · next.js · vgpu · press <kbd>⌘K</kbd>
           </span>

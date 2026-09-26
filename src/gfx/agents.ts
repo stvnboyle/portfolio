@@ -8,6 +8,10 @@ import { onCopy, pointerIn, runScene, type StartScene } from "./scene";
 import { MAX_STRAYS, StrayLayer } from "./strays";
 import { seeded } from "./random";
 import { createIntro } from "./intro";
+import { createFormation, MAX_FORMATION } from "./formation";
+import { createPrint } from "./print";
+import { createNetwork } from "./network";
+import { loadSnapshot, saveSnapshot, type Snapshot } from "./snapshot";
 
 /** Mirrors the task array lengths in agents.wgsl and agents-render.wgsl. */
 const MAX_TASKS = 8;
@@ -37,6 +41,15 @@ const CLEAR_SECONDS = 1.5;
 const TRAIL_SCALE = 4096;
 /** Every fresh load plays out from the same seed, so the swarm goes the same way each time. */
 const SEED = 20260918;
+/**
+ * How the name comes in: "network", four robots wire up the letters and charge
+ * them with pulses (network.ts); "print", one robot prints it in layers like a
+ * 3D printer (print.ts); "formation", the swarm assembles it and bursts away
+ * (formation.ts); or "bolts", four robots shoot it in letter by letter (intro.ts).
+ */
+const INTRO = "network" as "network" | "print" | "formation" | "bolts";
+/** How often the swarm's state is copied back, to carry it over to the next page load. */
+const SNAPSHOT_MS = 1000;
 
 /** How long a finished task's pulse takes to swell out and fade. */
 const PULSE_SECONDS = 2.2;
@@ -84,8 +97,10 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
     hero,
     callbacks,
     ({ gpu, surface: canvasSurface, small, calm, onCleanup }) => {
-      const random = seeded(SEED);
       const capacity = small ? 760 : 2400;
+      // The swarm carries on from where it was on the last page load in this tab, if it can.
+      const saved = loadSnapshot(capacity);
+      const random = seeded(saved ? SEED + saved.steps : SEED);
       // The population builds up to this, then gently rises and falls around it over minutes.
       const baseline = small ? 300 : 900;
       const opening = small ? 60 : 140;
@@ -94,8 +109,8 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       const canvasSize = () => [canvas.clientWidth, canvas.clientHeight] as const;
       const apron = () => Math.max(0, canvas.clientHeight - hero.clientHeight);
 
-      const initial = new Float32Array(capacity * STRIDE * 4);
-      for (let i = 0; i < capacity; i++) {
+      const initial = saved?.state ?? new Float32Array(capacity * STRIDE * 4);
+      for (let i = 0; i < capacity && !saved; i++) {
         const [w, h] = world();
         const angle = random() * Math.PI * 2;
         const o = i * STRIDE * 4;
@@ -103,6 +118,33 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         initial.set([0.5, 0.52, 0.6, 0], o + 4);
         initial.set([i < opening ? 1 : 0, -1, 0, 0], o + 8);
       }
+      if (saved) {
+        const [w, h] = world();
+        const [sx, sy] = [w / saved.world[0], h / saved.world[1]];
+        for (let o = 0; o < initial.length; o += STRIDE * 4) {
+          initial[o] *= sx;
+          initial[o + 1] *= sy;
+          // Anyone caught mid-intro is let go; the intro plays afresh.
+          if (initial[o + 10] !== 0) initial.set([0, -1, 0, 0], o + 8);
+        }
+      }
+
+      // Robots are 20px tall (17px on phones).
+      const robot = small ? 17 : 20;
+      // The name's entrance (see INTRO). The scripted ones (network, print, bolts)
+      // share the intro crew and beams; the formation drives swarm agents directly.
+      const intro =
+        INTRO === "network"
+          ? createNetwork(hero, canvas, !calm, robot)
+          : INTRO === "print"
+            ? createPrint(hero, canvas, !calm, robot)
+            : createIntro(hero, canvas, !calm && INTRO === "bolts", robot);
+      const formation = createFormation(hero, canvas, !calm && INTRO === "formation", initial, robot);
+      // No intro playing (reduced motion, a late start): show the name as it is.
+      if (hero.dataset.intro !== "etching") hero.dataset.intro = "done";
+      const targets = storage(gpu, MAX_FORMATION * 32);
+      targets.write(formation.targets);
+
       const state = pingPongStorage(gpu, capacity * STRIDE * 16);
       state.read.write(initial);
       state.write.write(initial);
@@ -147,10 +189,6 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       });
 
       const pointer = { x: -1e4, y: -1e4, presence: 0, target: 0 };
-      // Robots are 20px tall (17px on phones).
-      const robot = small ? 17 : 20;
-      // The name's entrance, etched by a crew of robots with lasers.
-      const intro = createIntro(hero, canvas, !calm, robot);
       let exitBudget = MAX_EXITS;
       let spawn = { budget: 0, at: [0, 0, 0, 0] };
       const swarmValues = () => ({
@@ -173,6 +211,8 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         introAt: intro.at,
         introTint: intro.tint,
         trailGrid: [trailW, trailH, TRAIL_SCALE, 0],
+        form: formation.form(),
+        formCentre: formation.centre(),
       });
 
       let tasks: Array<Task | null> = Array.from({ length: MAX_TASKS }, () => null);
@@ -191,7 +231,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       const swarm = compute(gpu, swarmShader, {
         label: "agents-swarm",
-        set: { swarm: swarmValues(), tasks: taskValues(), counts, exits, gate, deposit },
+        set: { swarm: swarmValues(), tasks: taskValues(), counts, exits, gate, deposit, targets },
       });
 
       // The copy's box in canvas pixels, so idle agents can dim over it.
@@ -275,6 +315,20 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         return t.closed === "done" ? `${name} · done` : name;
       };
 
+      const place = (slot: number, fields: Omit<Task, "label">) => {
+        const { x, y, radius, color } = fields;
+        const label = document.createElement("span");
+        label.className = "task-label";
+        // The label sits on whichever side of the ring has more room.
+        if (x > world()[0] / 2) label.dataset.side = "left";
+        const tone = `rgb(${color.map((c) => Math.round(c * 255)).join(" ")})`;
+        // Clear of the orbit the crew settles into, about four radii out.
+        label.style.cssText = `left:${x}px;top:${y}px;--tone:${tone};--clear:${Math.round(radius * 4.3)}px`;
+        overlay?.append(label);
+        const task: Task = { ...fields, label };
+        label.textContent = labelText(task);
+        tasks[slot] = task;
+      };
       const post = (x: number, y: number) => {
         let slot = tasks.findIndex((t) => t === null);
         if (slot < 0) {
@@ -285,17 +339,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         colorIndex = (colorIndex + 1) % PALETTE.length;
         const color = PALETTE[colorIndex];
         const radius = small ? 17 + random() * 5 : 20 + random() * 7;
-        const label = document.createElement("span");
-        label.className = "task-label";
-        // The label sits on whichever side of the ring has more room.
-        if (x > world()[0] / 2) label.dataset.side = "left";
-        const tone = `rgb(${color.map((c) => Math.round(c * 255)).join(" ")})`;
-        // Clear of the orbit the crew settles into, about four radii out.
-        label.style.cssText = `left:${x}px;top:${y}px;--tone:${tone};--clear:${Math.round(radius * 4.3)}px`;
-        overlay?.append(label);
-        const task: Task = { id: nextId++, x, y, radius, color, age: 0, progress: 0, workers: 0, closed: null, burst: 0, label };
-        label.textContent = labelText(task);
-        tasks[slot] = task;
+        place(slot, { id: nextId++, x, y, radius, color, age: 0, progress: 0, workers: 0, closed: null, burst: 0 });
       };
       // Somewhere clear of the copy in the top left.
       const postRandom = () => {
@@ -305,7 +349,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           const y = h * (small ? 0.55 + random() * 0.25 : 0.2 + random() * 0.58);
           if (!small && x < w * 0.55 && y < h * 0.6) continue;
           // Keep clear of other open tasks, so rings and labels don't overlap.
-          if (tasks.some((t) => t && !t.closed && Math.hypot(t.x - x, t.y - y) < (small ? 170 : 320))) continue;
+          if (tasks.some((t) => t && !t.closed && Math.hypot(t.x - x, t.y - y) < (small ? 150 : 280))) continue;
           return post(x, y);
         }
       };
@@ -374,18 +418,19 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         pointer.target = 1;
       };
       const onLeave = () => (pointer.target = 0);
-      const onDown = (e: PointerEvent) => {
+      // A click, not a pointerdown: on touch screens a swipe to scroll starts with a pointerdown too.
+      const onClick = (e: MouseEvent) => {
         if (onCopy(e)) return;
         const [x, y] = pointerIn(canvas, e);
         post(x, y);
       };
       hero.addEventListener("pointermove", onMove, { passive: true });
       hero.addEventListener("pointerleave", onLeave, { passive: true });
-      hero.addEventListener("pointerdown", onDown, { passive: true });
+      hero.addEventListener("click", onClick);
       onCleanup(() => {
         hero.removeEventListener("pointermove", onMove);
         hero.removeEventListener("pointerleave", onLeave);
-        hero.removeEventListener("pointerdown", onDown);
+        hero.removeEventListener("click", onClick);
         for (const t of tasks) t?.label.remove();
         strays.dispose();
       });
@@ -395,6 +440,47 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
       let accumulator = 0;
       let nextPost = 3;
+
+      /* --- carrying on from the last page load ------------------------------ */
+
+      if (saved) {
+        const [sx, sy] = [world()[0] / saved.world[0], world()[1] / saved.world[1]];
+        ({ elapsed, steps, simTime, nextId, colorIndex, completed, alive, nextSquad, nextLeave, nextPost } = saved);
+        mood = saved.mood;
+        saved.tasks.forEach((t, slot) => t && place(slot, { ...t, x: t.x * sx, y: t.y * sy, workers: 0 }));
+      }
+
+      // Copied back now and then; the latest copy is saved as the page goes.
+      let latest: Snapshot | null = null;
+      let lastSnapshot = 0;
+      const takeSnapshot = () => {
+        const meta = {
+          savedAt: 0,
+          capacity,
+          world: [...world()] as [number, number],
+          elapsed,
+          steps,
+          simTime,
+          nextId,
+          colorIndex,
+          completed,
+          alive,
+          nextSquad,
+          nextLeave,
+          nextPost,
+          mood,
+          tasks: tasks.map((t) => (t ? { ...t, label: undefined } : null)),
+        };
+        void state.read
+          .read()
+          .then((buffer) => (latest = { ...meta, state: new Float32Array(buffer) }))
+          .catch(() => undefined);
+      };
+      const onHide = () => {
+        if (latest) saveSnapshot({ ...latest, savedAt: Date.now() });
+      };
+      window.addEventListener("pagehide", onHide);
+      onCleanup(() => window.removeEventListener("pagehide", onHide));
       // 0 → 1 over the warm-up, easing in and out.
       const warmth = () => {
         const k = Math.min(1, simTime / WARMUP_SECONDS);
@@ -410,9 +496,9 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         if (nextPost <= 0) {
           const open = tasks.filter((t) => t && !t.closed).length;
           // One task at a time to begin with, then more as the swarm warms up.
-          const most = 1 + Math.round(warmth() * (small ? 1 : 2));
+          const most = 1 + Math.round(warmth() * (small ? 2 : 4));
           if (!calm && open < most) postRandom();
-          nextPost = 2 + random() * 2;
+          nextPost = 1.5 + random() * 1.5;
         }
 
         // Progress comes from agents actually on the task, as counted on the GPU.
@@ -492,6 +578,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
 
           pointer.presence += (pointer.target - pointer.presence) * (1 - Math.exp(-realDt * 6));
           intro.update(realDt);
+          formation.update(realDt);
           // Everything that decides where the swarm goes runs on the fixed simulation
           // clock, so a fresh load with the same seed plays out the same way.
           accumulator += dt;
@@ -502,6 +589,10 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
           if (accumulator > 1 / SIM_HZ) accumulator = 0;
 
           const now = performance.now();
+          if (now - lastSnapshot > SNAPSHOT_MS) {
+            lastSnapshot = now;
+            takeSnapshot();
+          }
           if (!reading && now - lastRead > READBACK_MS) {
             lastRead = now;
             readBack();

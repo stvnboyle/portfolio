@@ -2,14 +2,21 @@
 
 import { useEffect, useRef } from "react";
 import { drawRobot } from "@/gfx/strays";
+import { drawRay, fitCanvas, RIDE_BEHIND } from "@/gfx/ray";
 import type { Rgb } from "@/gfx/palette";
 
 const hexToRgb = (hex: string): Rgb => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as Rgb;
 
+/** The riding robot's height, px. */
+const ROBOT = 15;
+/** Where the ray warms from at its tail: magenta, the first of the glow colours. */
+const TAIL: Rgb = [1, 0.24, 0.6];
+
 /**
- * A reading-progress line under the post bar, with one of the hero's robots
- * flying along its leading edge: it leans forward as you read on, back as
- * you scroll up, and hovers when you stop.
+ * A reading-progress light ray under the post bar, in the post's colour, with
+ * one of the hero's robots riding its head: it leans forward as you read on,
+ * back as you scroll up, and hovers when you stop. With reduced motion it's a
+ * plain line.
  */
 export function ReadingProgress({ tone }: { tone: string }) {
   const barRef = useRef<HTMLDivElement>(null);
@@ -48,15 +55,9 @@ export function ReadingProgress({ tone }: { tone: string }) {
       // px/s along the bar, eased so the lean settles when reading stops.
       velocity += ((step * width) / Math.max(dt, 1e-3) - velocity) * (1 - Math.exp(-dt * 6));
 
-      bar.style.transform = `scaleX(${shown})`;
-
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const height = canvas.clientHeight;
-      if (canvas.width !== Math.round(width * dpr)) canvas.width = Math.round(width * dpr);
-      if (canvas.height !== Math.round(height * dpr)) canvas.height = Math.round(height * dpr);
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      context.clearRect(0, 0, width, height);
+      const [, height] = fitCanvas(canvas, context);
       const x = 12 + shown * (width - 24);
+      drawRay(context, 0, x - ROBOT * RIDE_BEHIND, height / 2, TAIL, tint, 1);
       drawRobot(context, x, height / 2 + 1.5 * Math.sin(t * 2.4), {
         vx: Math.max(-90, Math.min(90, velocity)) + 8,
         vy: 0,
@@ -65,7 +66,7 @@ export function ReadingProgress({ tone }: { tone: string }) {
         alpha: 1,
         time: t,
         seed: 0,
-        size: 14,
+        size: ROBOT,
       });
       frame = requestAnimationFrame(tick);
     };
@@ -79,6 +80,8 @@ export function ReadingProgress({ tone }: { tone: string }) {
       window.addEventListener("scroll", still, { passive: true });
       return () => window.removeEventListener("scroll", still);
     }
+    // The ray stands in for the plain line.
+    bar.style.opacity = "0";
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [tone]);

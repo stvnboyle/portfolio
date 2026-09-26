@@ -72,9 +72,11 @@ const BOX_BOTTOM: f32 = 10.5;
 fn vs_agents(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> Varyings {
   let s = agents[3u * ii];
   let tint = agents[3u * ii + 1u];
-  let alive = agents[3u * ii + 2u].x;
+  let info = agents[3u * ii + 2u];
+  let alive = info.x;
   let corner = cornerOf(vi);
-  let unit = view.frame.z * 0.1;
+  // Robots in the name's formation shrink to a pixel of it (info.w, see agents.wgsl).
+  let unit = view.frame.z * 0.1 * select(1.0, info.w, info.z != 0.0);
 
   // Robots lean hard into their direction of travel, head first.
   let tilt = clamp(s.z * 0.02, -0.9, 0.9);
@@ -151,7 +153,9 @@ fn layer(acc: vec4f, d: f32, px: f32, color: vec3f) -> vec4f {
 @fragment
 fn fs_agents(in: Varyings) -> @location(0) vec4f {
   let p = in.local;
-  let px = fwidth(p.x);
+  // One screen pixel in robot units, whichever way the robot leans (fwidth
+  // overestimates it on a tilt, which softens every edge).
+  let px = length(vec2f(dpdx(p.x), dpdy(p.x)));
   let m = vec2f(abs(p.x), p.y);
 
   // Lit from above.

@@ -5,9 +5,13 @@ import type { SceneStats } from "@/gfx/scene";
 import { startAgents } from "@/gfx/agents";
 import { profile } from "@/data/profile";
 import { WebVitals } from "./WebVitals";
+import { Spinner } from "./Spinner";
 
 /** Craig Reynolds' boids, the flocking model the swarm's first three terms come from. */
 const BOIDS_URL = "https://www.red3d.com/cwr/boids/";
+
+/** The swarm's stats (gfx/agents.ts), shown as placeholders until its first readout. */
+const PENDING_STATS = ["agents", "working", "done"];
 
 type FieldState = { kind: "starting" } | { kind: "live"; status: SceneStats | null } | { kind: "unsupported" };
 
@@ -65,17 +69,29 @@ export function Hero() {
         <dl className="hud" aria-hidden>
           <div>
             <dt>runtime</dt>
-            <dd>{unsupported ? "no webgpu" : "vgpu · webgpu"}</dd>
+            <dd>
+              {unsupported ? "no webgpu" : field.kind === "starting" ? <Spinner label="probing webgpu" /> : "vgpu · webgpu"}
+            </dd>
           </div>
-          {(status?.stats ?? []).map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
+          {status
+            ? status.stats.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))
+            : !unsupported &&
+              PENDING_STATS.map((label) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>
+                    <Spinner label="counting" />
+                  </dd>
+                </div>
+              ))}
           <div>
             <dt>frame</dt>
-            <dd>{status ? `${status.fps} fps` : "—"}</dd>
+            <dd>{status ? `${status.fps} fps` : unsupported ? "—" : <Spinner label="measuring" />}</dd>
           </div>
         </dl>
       </div>

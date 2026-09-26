@@ -4,6 +4,8 @@ import { getArticles } from "@/data/articles";
 import { profile } from "@/data/profile";
 import { PostContents } from "@/components/PostContents";
 import { ReadingProgress } from "@/components/ReadingProgress";
+import { Host } from "@/components/Host";
+import { SeekLinks } from "@/components/SeekLinks";
 
 /** Every post is prerendered; anything else is a 404. */
 export const dynamicParams = false;
@@ -62,19 +64,30 @@ export default async function PostPage({ params }: Params) {
 
   return (
     <div className="post-page" style={{ "--tone": tone } as React.CSSProperties}>
+      <SeekLinks />
       <header className="post-bar">
         <div className="post-bar__inner">
-          {/* The prompt has cd'd into the post: the caret sits at the end of its path. */}
+          {/* The prompt has the post open in vi: the caret sits at the end of its path. */}
           <p className="post-bar__crumb">
+            <span className="nav__prompt" aria-hidden>
+              $
+            </span>
+            <span className="nav__cmd" aria-hidden>
+              vi{" "}
+            </span>
             <a className="nav__brand" href="/" aria-label="stevenboyle.dev, home">
-              stevenboyle.dev
+              <Host />
             </a>
+            {/* A long slug truncates in the middle, keeping the .md in view. */}
             <span className="post-bar__path" aria-hidden>
               /writing/{article.slug}
             </span>
+            <span className="post-bar__ext" aria-hidden>
+              .md
+            </span>
             <i className="caret" aria-hidden />
           </p>
-          <a className="post-bar__back" href="/#writing">
+          <a className="post-bar__back" href="/">
             cd ..
           </a>
         </div>
@@ -84,9 +97,6 @@ export default async function PostPage({ params }: Params) {
       <main className="article" id="top">
         <header className="shell article__head">
           <p className="section__eyebrow">{"// writing"}</p>
-          <p className="article__cmd" aria-hidden>
-            <span>$</span> vi ~/writing/{article.slug}.md
-          </p>
           <h1 className="article__title">{article.title}</h1>
           <p className="article__meta">
             <span title="Medium's id for this post">id {article.id.slice(0, 7)}</span>

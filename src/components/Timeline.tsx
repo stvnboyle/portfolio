@@ -25,7 +25,7 @@ function Graph({ row, node, head }: { row: number; node?: LaneId; head?: boolean
 export function Timeline() {
   return (
     <ol className="timeline">
-      <li className="commit commit--head" data-reveal>
+      <li className="commit commit--head">
         <Graph row={0} head />
         <p className="commit__date">now</p>
         <div className="commit__body">
@@ -47,7 +47,6 @@ export function Timeline() {
           <li
             key={event.id}
             className="commit"
-            data-reveal
             style={{ "--tone": lane.tone } as React.CSSProperties}
           >
             <Graph row={i + 1} node={event.lane} />

@@ -62,7 +62,8 @@ export function runScene(
       gpu,
       canvas,
       hero,
-      surface: surface(gpu, canvas, { dpr: [1, 2] }),
+      // Up to 3x, so the robots stay sharp on dense screens and when the page is zoomed in.
+      surface: surface(gpu, canvas, { dpr: [1, 3] }),
       calm: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
       small: window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768,
       onCleanup: (fn) => cleanups.push(fn),
@@ -108,7 +109,7 @@ export function runScene(
 }
 
 /** Pointer position relative to the canvas, in CSS pixels. */
-export function pointerIn(canvas: HTMLCanvasElement, e: PointerEvent): [number, number] {
+export function pointerIn(canvas: HTMLCanvasElement, e: MouseEvent): [number, number] {
   const rect = canvas.getBoundingClientRect();
   return [e.clientX - rect.left, e.clientY - rect.top];
 }
