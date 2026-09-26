@@ -168,7 +168,7 @@ function Projects() {
     <section className="section" id="projects">
       <div className="shell">
         <SectionHead name="projects">
-          Side projects that made it to production.
+          Personal projects that made it to production.
           <span> Still shipping.</span>
         </SectionHead>
 

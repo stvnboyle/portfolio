@@ -34,9 +34,10 @@ export const PROJECTS: Project[] = [
     points: [
       "Agent swarm simulated in WGSL compute shaders, rendered as instanced SDF robots",
       "GPU → CPU feedback for live telemetry: agents, crews working, tasks done",
+      "Medium posts pulled from the RSS feed at build time and rendered as native pages, with a committed snapshot that keeps older posts and builds working if Medium is down",
       "⌘K command palette, git-graph timeline, static export with no server at runtime",
     ],
-    stack: ["TypeScript", "Next.js", "React", "WebGPU", "WGSL", "vgpu"],
+    stack: ["TypeScript", "Next.js", "React", "WebGPU", "WGSL", "vgpu", "RSS"],
     tone: "#1aebd1",
   },
 ];
