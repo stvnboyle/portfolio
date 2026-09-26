@@ -56,7 +56,7 @@ export const roles: Role[] = [
     end: null,
     location: "Newcastle upon Tyne",
     summary:
-      "Owns full-stack architecture and engineering standards across the business. Leads technical delivery for multiple products serving hundreds of thousands of users, managing both internal and forward-deployed engineering teams, and setting engineering standards that scale.",
+      "Owns full-stack architecture and engineering standards across the business, for customers ranging from unicorn startups to Fortune 500 enterprises. Leads technical delivery for multiple products serving hundreds of thousands of users, managing both internal and forward-deployed engineering teams.",
     points: [
       "Leads technical delivery across multiple concurrent products and teams",
       "Manages internal and forward-deployed engineers — mentorship, code review, pairing, career development",
