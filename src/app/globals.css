@@ -647,6 +647,21 @@ kbd {
   white-space: nowrap;
 }
 
+/* Each stat holds the width of its longest reading (the font is monospaced), and the loading
+   placeholders fit inside it, so the row doesn't wrap under the equation and snap back once the
+   swarm reports in. */
+.hud [data-stat="runtime"] dd {
+  min-width: 13ch;
+}
+
+.hud [data-stat="count"] dd {
+  min-width: 5ch;
+}
+
+.hud [data-stat="frame"] dd {
+  min-width: 7ch;
+}
+
 /* ===========================================================================
    Sections
    =========================================================================== */

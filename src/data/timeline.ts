@@ -75,7 +75,7 @@ export const TIMELINE: TimelineEvent[] = [
     org: hedgehog.company,
     period: "2021 — 2022",
     summary:
-      "Began influencing decisions across the frontend department: state management, data fetching and server-state caching with React Query. Pioneered the company's adoption of Next.js.",
+      "Worked across greenfield and brownfield engagements, and began influencing decisions across the frontend department: state management, data fetching and server-state caching with React Query. Pioneered the company's adoption of Next.js.",
   },
   {
     id: "hedgehog-engineer",

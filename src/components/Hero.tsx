@@ -68,31 +68,29 @@ export function Hero() {
           <span aria-hidden>{unsupported ? "static preview" : "boids, reynolds ’87 · click to post a task"}</span>
         </p>
         <dl className="hud" aria-hidden>
-          <div>
+          <div data-stat="runtime">
             <dt>runtime</dt>
-            <dd>
-              {unsupported ? "no webgpu" : field.kind === "starting" ? <Spinner label="probing webgpu" /> : "vgpu · webgpu"}
-            </dd>
+            <dd>{unsupported ? "no webgpu" : field.kind === "starting" ? <Spinner label="probing" /> : "vgpu · webgpu"}</dd>
           </div>
           {status
             ? status.stats.map(([label, value]) => (
-                <div key={label}>
+                <div key={label} data-stat="count">
                   <dt>{label}</dt>
                   <dd>{value}</dd>
                 </div>
               ))
             : !unsupported &&
               PENDING_STATS.map((label) => (
-                <div key={label}>
+                <div key={label} data-stat="count">
                   <dt>{label}</dt>
                   <dd>
-                    <Spinner label="counting" />
+                    <Spinner label="" />
                   </dd>
                 </div>
               ))}
-          <div>
+          <div data-stat="frame">
             <dt>frame</dt>
-            <dd>{status ? `${status.fps} fps` : unsupported ? "—" : <Spinner label="measuring" />}</dd>
+            <dd>{status ? `${status.fps} fps` : unsupported ? "—" : <Spinner label="fps" />}</dd>
           </div>
         </dl>
       </div>
