@@ -13,7 +13,7 @@ export const profile = {
   /** The about section's paragraphs; the first is also the short intro above. */
   about: [
     "I've spent the last decade building software for the web, growing from IC to leading engineering teams and owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
-    "I care about how software feels at every end of it: the developer experience of the team building it, the agent experience of the AI working alongside them, and the user experience of the people relying on it. Lately that means agentic engineering, shipping at pace with AI without dropping the quality bar.",
+    "I care about how software feels at every end of it: the developer experience of the team building it, the agent experience of the agents working alongside them, and the user experience of the people who rely on it. Lately I've been heavily focused on agentic engineering, shipping at pace with AI without dropping the quality bar.",
   ],
   links: {
     linkedin: "https://linkedin.com/in/steven-buchanan-boyle-114384139",
@@ -170,7 +170,7 @@ export const education = {
   end: "2018-06",
   location: "Newcastle upon Tyne",
   detail:
-    "Covered topics such as web technologies, object-oriented programming in Java, relational databases and SQL, embedded systems in C and C++, and artificial intelligence and machine learning.",
+    "Covered topics such as web technologies, object-oriented programming in Java, relational databases and SQL, embedded systems in C and C++, artificial intelligence and machine learning.",
   dissertation:
     "“Symbiosis” — a web platform connecting professional experts with clients seeking domain expertise via real-time 1:1 messaging, with dashboards and analytics to gamify the experience.",
 };
@@ -213,9 +213,9 @@ export const skillGroups = [
 ];
 
 export const hobbies = [
-  "Big gym goer",
   "Deep nature breakaways and walking trails",
   "Dystopian thrillers",
-  "Walkies",
-  "Tinkering with new technologies",
+  "Walkies with the pooches",
+  "Gym",
+  "Nerding out",
 ];

@@ -113,7 +113,7 @@ function About() {
     <section className="section" id="about">
       <div className="shell">
         <SectionHead name="about">
-          Hi, I&rsquo;m Steven.
+          Hi, I&rsquo;m Steven!
           <span> {profile.tagline}</span>
         </SectionHead>
 
@@ -137,7 +137,7 @@ function About() {
             <dl className="about__facts">
               <div>
                 <dt>now</dt>
-                <dd>Tech lead &amp; engineering manager at hedgehog lab · founder, HelloWorld Technologies Ltd</dd>
+                <dd>Tech Lead &amp; Engineering Manager at hedgehog lab · Founder, HelloWorld Technologies Ltd</dd>
               </div>
               <div>
                 <dt>studied</dt>
@@ -272,7 +272,7 @@ function Writing({ articles }: { articles: Article[] }) {
     <section className="section" id="writing">
       <div className="shell">
         <SectionHead name="writing">
-          Notes on teams, architecture and shipping.
+          Some of my technical ramblings.
           <span> Also on Medium.</span>
         </SectionHead>
 
@@ -307,8 +307,8 @@ function Footer({ rev }: { rev: string }) {
     <footer className="footer" id="contact">
       <div className="shell">
         <SectionHead name="contact">
-          Building something?
-          <span> Say hello.</span>
+          Building something or want to connect?
+          <span> Say hello!</span>
         </SectionHead>
 
         <div className="footer__commands">

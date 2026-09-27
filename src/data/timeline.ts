@@ -49,7 +49,7 @@ export const TIMELINE: TimelineEvent[] = [
     org: helloworld.company,
     period: helloworld.period,
     summary:
-      "Bootstrapped the business solo and defined the company vision as sole technical founder, building and architecting a platform outside working hours that drives code-review engagement across distributed teams.",
+      "Bootstrapped the business solo and defined the company vision as sole technical founder, building engaging developer tools - latest launch is a platform I built outside working hours that drives code-review engagement across distributed engineering teams.",
     points: helloworld.points,
     stack: helloworld.stack,
   },
@@ -75,7 +75,7 @@ export const TIMELINE: TimelineEvent[] = [
     org: hedgehog.company,
     period: "2021 — 2022",
     summary:
-      "Worked across greenfield and brownfield engagements, and began influencing decisions across the frontend department: state management, data fetching and server-state caching with React Query. Pioneered the company's adoption of Next.js.",
+      "Worked across greenfield and brownfield engagements, and began influencing decisions across the frontend department: state management, async data fetching, TanStack Query, and server-side rendering. Pioneered the company's adoption of Next.js.",
   },
   {
     id: "hedgehog-engineer",
