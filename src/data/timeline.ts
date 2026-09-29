@@ -51,7 +51,6 @@ export const TIMELINE: TimelineEvent[] = [
     summary:
       "Bootstrapped the business solo and defined the company vision as sole technical founder, building engaging developer tools - latest launch is a platform I built outside working hours that drives code-review engagement across distributed engineering teams.",
     points: helloworld.points,
-    stack: helloworld.stack,
   },
   {
     id: "hedgehog-lead",

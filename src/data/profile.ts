@@ -93,6 +93,7 @@ export const roles: Role[] = [
       "Python",
       "Node",
       "AWS",
+      "Azure",
       "Terraform",
       "PostgreSQL",
       "Claude Code",
