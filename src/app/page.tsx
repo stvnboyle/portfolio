@@ -137,7 +137,7 @@ function About() {
             <dl className="about__facts">
               <div>
                 <dt>now</dt>
-                <dd>Tech Lead &amp; Engineering Manager at hedgehog lab · Founder, HelloWorld Technologies Ltd</dd>
+                <dd>Technical Lead &amp; Engineering Manager at hedgehog lab · Founder, HelloWorld Technologies Ltd</dd>
               </div>
               <div>
                 <dt>studied</dt>

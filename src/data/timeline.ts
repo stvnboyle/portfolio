@@ -49,18 +49,31 @@ export const TIMELINE: TimelineEvent[] = [
     org: helloworld.company,
     period: helloworld.period,
     summary:
-      "Bootstrapped the business solo and defined the company vision as sole technical founder, building engaging developer tools - latest launch is a platform I built outside working hours that drives code-review engagement across distributed engineering teams.",
+      "Sole technical founder building developer tools on the side. Latest launch is gitgood.io, which drives code-review engagement across distributed teams.",
     points: helloworld.points,
+  },
+  // Held alongside Tech Lead; split out so each reads as its own role.
+  {
+    id: "hedgehog-manager",
+    lane: "work",
+    ref: "new role",
+    date: "2024",
+    title: "Engineering Manager",
+    org: hedgehog.company,
+    period: "2024 — Present",
+    summary:
+      "Manages internal and forward-deployed engineering teams: mentorship, code review, pairing and career development.",
   },
   {
     id: "hedgehog-lead",
     lane: "work",
     ref: "new role",
     date: "2022",
-    title: hedgehog.title,
+    title: "Technical Lead",
     org: hedgehog.company,
     period: "2022 — Present",
-    summary: hedgehog.summary,
+    summary:
+      "Owns full-stack architecture and engineering standards across the business, for customers ranging from unicorn startups to Fortune 500 enterprises. Leads technical delivery for multiple products serving hundreds of thousands of users.",
     points: hedgehog.points,
     engagements: hedgehog.engagements,
     stack: hedgehog.stack,
@@ -105,9 +118,9 @@ export const TIMELINE: TimelineEvent[] = [
     title: lookers.title,
     org: lookers.company,
     period: lookers.period,
-    summary: lookers.summary,
+    summary:
+      "Joined just before graduating. Helped build the reporting databases dealership and sales teams leaned on, kept the feeds pushing stock to brand and third-party sites running, and rebuilt a few ageing PHP apps along the way.",
     points: lookers.points,
-    stack: lookers.stack,
   },
   {
     id: "placement",
@@ -117,9 +130,9 @@ export const TIMELINE: TimelineEvent[] = [
     title: placement.title,
     org: placement.company,
     period: placement.period,
-    summary: placement.summary,
+    summary:
+      "University placement on a pre-tenancy platform used by hundreds of UK estate agents. First taste of shipping to production: building features with a mentor alongside, and taking live support calls and bug fixes on real servers.",
     points: placement.points,
-    stack: placement.stack,
   },
   {
     id: "started",

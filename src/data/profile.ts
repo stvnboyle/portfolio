@@ -50,7 +50,7 @@ export const roles: Role[] = [
   {
     company: "hedgehog lab",
     short: "hedgehog lab",
-    title: "Tech Lead & Engineering Manager",
+    title: "Technical Lead & Engineering Manager",
     period: "Jan 2019 — Present",
     start: "2019-01",
     end: null,

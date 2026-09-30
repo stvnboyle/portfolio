@@ -39,7 +39,7 @@ export function Timeline() {
           </p>
           <p className="commit__summary">
             Building a GenAI EdTech platform, with a core focus on infrastructure and agentic engineering, developing across
-            the stack. Alongside that, managing engineers: mentoring them and supporting their career development.
+            the stack.
           </p>
         </div>
       </li>
