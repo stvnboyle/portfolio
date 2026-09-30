@@ -62,7 +62,7 @@ export const TIMELINE: TimelineEvent[] = [
     org: hedgehog.company,
     period: "2024 — Present",
     summary:
-      "Manages internal and forward-deployed engineering teams: mentorship, code review, pairing and career development.",
+      "Manages internal and forward-deployed engineering teams: mentorship, code review, pairing, career development and conducting technical interviews.",
   },
   {
     id: "hedgehog-lead",
@@ -73,7 +73,7 @@ export const TIMELINE: TimelineEvent[] = [
     org: hedgehog.company,
     period: "2022 — Present",
     summary:
-      "Owns full-stack architecture and engineering standards across the business, for customers ranging from unicorn startups to Fortune 500 enterprises. Leads technical delivery for multiple products serving hundreds of thousands of users.",
+      "Owns full-stack architecture and engineering standards across the business, for clients ranging from startups to large enterprise customers. Leads technical delivery for multiple products serving hundreds of thousands of users.",
     points: hedgehog.points,
     engagements: hedgehog.engagements,
     stack: hedgehog.stack,
@@ -131,7 +131,7 @@ export const TIMELINE: TimelineEvent[] = [
     org: placement.company,
     period: placement.period,
     summary:
-      "University placement on a pre-tenancy platform used by hundreds of UK estate agents. First taste of shipping to production: building features with a mentor alongside, and taking live support calls and bug fixes on real servers.",
+      "University placement on a pre-tenancy platform used by hundreds of UK estate agents. My first time shipping to production: building user-facing features, taking live support calls from customers, and fixing bugs directly on production servers.",
     points: placement.points,
   },
   {
@@ -141,7 +141,7 @@ export const TIMELINE: TimelineEvent[] = [
     date: "2014",
     title: "BA (Hons) Computer Science",
     org: education.school,
-    summary: "Started a computer science degree in Newcastle upon Tyne.",
+    summary: "Started a four-year computer science sandwich degree.",
   },
 ];
 

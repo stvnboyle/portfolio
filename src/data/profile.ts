@@ -12,8 +12,7 @@ export const profile = {
     "I've spent the last decade building software for the web, growing from IC to leading engineering teams and owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
   /** The about section's paragraphs; the first is also the short intro above. */
   about: [
-    "I've spent the last decade building software for the web, growing from IC to leading engineering teams and owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
-    "I care about how software feels at every end of it: the developer experience of the team building it, the agent experience of the agents working alongside them, and the user experience of the people who rely on it. Lately I've been heavily focused on agentic engineering, shipping at pace with AI without dropping the quality bar.",
+    "I've spent over a decade building software for the web, growing from IC to leading engineering teams - owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
   ],
   links: {
     linkedin: "https://linkedin.com/in/steven-buchanan-boyle-114384139",
@@ -56,10 +55,10 @@ export const roles: Role[] = [
     end: null,
     location: "Newcastle upon Tyne",
     summary:
-      "Owns full-stack architecture and engineering standards across the business, for customers ranging from unicorn startups to Fortune 500 enterprises. Leads technical delivery for multiple products serving hundreds of thousands of users, managing both internal and forward-deployed engineering teams.",
+      "Owns full-stack architecture and engineering standards across the business, for clients ranging from startups to large enterprise customers. Leads technical delivery for multiple products serving hundreds of thousands of users, managing both internal and forward-deployed engineering teams.",
     points: [
       "Leads technical delivery across multiple concurrent products and teams",
-      "Manages internal and forward-deployed engineers — mentorship, code review, pairing, career development",
+      "Manages internal and forward-deployed engineers — mentorship, code review, pairing, career development, technical interviews",
       "Operates customer- and executive-facing, translating business requirements into technical outcomes",
       "Sets architecture and engineering standards designed to scale across the organisation",
     ],
@@ -156,8 +155,9 @@ export const roles: Role[] = [
     summary:
       "Third-year placement on a pre-tenancy software platform used by hundreds of estate agents across the UK. My first time shipping to production, and a hands-on introduction to the SDLC and how servers, clients and databases fit together.",
     points: [
-      "Built user-facing features while being actively mentored",
-      "Handled live support calls and bug fixes on physical production servers",
+      "Shipped user-facing features to a live platform used by hundreds of estate agents across the UK",
+      "Worked across the full stack: Laravel and PHP on the server, MySQL for data, jQuery and SASS in the browser",
+      "Took live support calls from customers and diagnosed and fixed bugs directly on production servers",
     ],
     stack: ["HTML", "CSS", "SASS", "Laravel", "PHP", "JavaScript", "jQuery", "MySQL"],
   },

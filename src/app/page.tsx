@@ -168,8 +168,8 @@ function Projects() {
     <section className="section" id="projects">
       <div className="shell">
         <SectionHead name="projects">
-          Personal projects that made it to production.
-          <span> Still shipping.</span>
+          Built after hours, running in production.
+          <span> Side projects that actually shipped.</span>
         </SectionHead>
 
         <div className="projects">
@@ -255,8 +255,7 @@ function Career() {
     <section className="section" id="timeline">
       <div className="shell">
         <SectionHead name="timeline">
-          Ten years of commits, from intern to tech lead.
-          <span> Newest first.</span>
+          The journey so far.
         </SectionHead>
         <div className="timeline-wrap">
           <TimelineLight />
