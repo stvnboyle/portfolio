@@ -164,6 +164,12 @@ async function live(): Promise<Article[]> {
   }
 }
 
+/** Each post takes one of the glow colours, in order. Mirrors --glow-1..4 in globals.css. */
+const TONES = ["#1aebd1", "#ff3d99", "#9450ff", "#2a7aff"];
+
+/** The glow colour of the post at `index` in getArticles(), for its page and preview card. */
+export const toneOf = (index: number) => TONES[index % TONES.length];
+
 let cached: Promise<Article[]> | undefined;
 
 /**

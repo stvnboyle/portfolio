@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getArticles } from "@/data/articles";
+import { getArticles, toneOf } from "@/data/articles";
 import { profile } from "@/data/profile";
 import { PostContents } from "@/components/PostContents";
 import { ReadingProgress } from "@/components/ReadingProgress";
@@ -11,13 +11,6 @@ import { SeekLinks } from "@/components/SeekLinks";
 export const dynamicParams = false;
 
 type Params = { params: Promise<{ slug: string }> };
-
-/** Mirrors app/opengraph-image.alt.txt, for the preview image posts share with the home page. */
-const PREVIEW_ALT =
-  "Steven Boyle's name lit in magenta, violet, blue and cyan, wired up by four robots in a glowing circuit, with the rest of the swarm flying around it.";
-
-/** Each post takes one of the glow colours, in order. Mirrors --glow-1..4 in globals.css. */
-const TONES = ["#1aebd1", "#ff3d99", "#9450ff", "#2a7aff"];
 
 export async function generateStaticParams() {
   return (await getArticles()).map((a) => ({ slug: a.slug }));
@@ -32,21 +25,19 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description: article.excerpt,
     // Medium has the original; this copy points search engines at it.
     alternates: { canonical: article.url },
-    // A page's own openGraph and twitter replace the site's rather than merging, so the preview
-    // image (app/opengraph-image.png) is named again here.
+    // A page's own openGraph and twitter replace the site's rather than merging. The preview
+    // image is this post's own card (./opengraph-image.tsx), which Next adds to both.
     openGraph: {
       title: article.title,
       description: article.excerpt,
       url: `/writing/${article.slug}`,
       type: "article",
       publishedTime: article.iso,
-      images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: PREVIEW_ALT }],
     },
     twitter: {
       card: "summary_large_image",
       title: article.title,
       description: article.excerpt,
-      images: [{ url: "/twitter-image.png", alt: PREVIEW_ALT }],
     },
   };
 }
@@ -73,7 +64,7 @@ export default async function PostPage({ params }: Params) {
   // Newest first, so "newer" is the one before.
   const newer = articles[index - 1];
   const older = articles[index + 1];
-  const tone = TONES[index % TONES.length];
+  const tone = toneOf(index);
   const longDate = new Date(article.iso).toLocaleDateString("en-GB", {
     weekday: "short",
     day: "numeric",
