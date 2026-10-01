@@ -98,7 +98,7 @@ export const TIMELINE: TimelineEvent[] = [
     org: hedgehog.company,
     period: "Jan 2019 — 2021",
     summary:
-      "Built features in React for multiple customers, and pioneered the team's adoption of hooks, moving from class components to function components, custom hooks and the Context API.",
+      "Built features in React for multiple customers, and drove the team's adoption of hooks, moving from class components to function components, custom hooks and the Context API.",
   },
   {
     id: "graduated",
