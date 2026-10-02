@@ -1,5 +1,18 @@
 import { LANES, TIMELINE, laneSpans, type LaneId } from "@/data/timeline";
 
+/** Bare domains in a summary ("gitgood.io") become links. */
+function Linkified({ text }: { text: string }) {
+  return text.split(/\b([a-z0-9-]+\.(?:io|dev|com))\b/i).map((part, i) =>
+    i % 2 ? (
+      <a key={part} className="link" href={`https://${part}`} target="_blank" rel="noreferrer">
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 /** One row's slice of the branch graph: lines through, and a commit node. */
 function Graph({ row, node, head }: { row: number; node?: LaneId; head?: boolean }) {
   const spans = laneSpans();
@@ -71,7 +84,7 @@ export function Timeline() {
                   )}
                 </span>
               </h3>
-              {event.summary && <p className="commit__summary">{event.summary}</p>}
+              {event.summary && <p className="commit__summary"><Linkified text={event.summary} /></p>}
 
               {event.stack && <p className="commit__stack">{event.stack.join(" / ")}</p>}
             </div>

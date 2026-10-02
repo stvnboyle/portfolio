@@ -3,7 +3,7 @@ import { GeistMono } from "geist/font/mono";
 import { profile } from "@/data/profile";
 import "./globals.css";
 
-const title = `${profile.fullName} — ${profile.roles.join(" / ")}`;
+const title = profile.name;
 const description = `${profile.roles.join(", ")} in ${profile.location}. ${profile.tagline}`;
 
 export const metadata: Metadata = {

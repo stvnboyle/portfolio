@@ -137,7 +137,13 @@ function About() {
             <dl className="about__facts">
               <div>
                 <dt>now</dt>
-                <dd>Technical Lead &amp; Engineering Manager at hedgehog lab · Founder, HelloWorld Technologies Ltd</dd>
+                <dd>
+                  Technical Lead &amp; Engineering Manager at{" "}
+                  <a className="link" href="https://hedgehoglab.com" target="_blank" rel="noreferrer">
+                    hedgehog lab
+                  </a>{" "}
+                  · Founder, HelloWorld Technologies Ltd
+                </dd>
               </div>
               <div>
                 <dt>studied</dt>
@@ -169,7 +175,7 @@ function Projects() {
       <div className="shell">
         <SectionHead name="projects">
           Outside the day job.
-          <span> Things I build in my own time.</span>
+          <span> Side quests shipped after hours.</span>
         </SectionHead>
 
         <div className="projects">
