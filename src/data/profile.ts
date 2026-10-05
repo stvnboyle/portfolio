@@ -171,7 +171,7 @@ export const education = {
   end: "2018-06",
   location: "Newcastle upon Tyne",
   detail:
-    "Covered topics such as web technologies, object-oriented programming in Java, relational databases and SQL, embedded systems in C and C++, artificial intelligence and machine learning.",
+    "I graduated! Covered topics such as web technologies, object-oriented programming in Java, relational databases and SQL, embedded systems in C and C++, artificial intelligence and machine learning, finishing with a web-focused dissertation.",
   dissertation:
     "“Symbiosis” — a web platform connecting professional experts with clients seeking domain expertise via real-time 1:1 messaging, with dashboards and analytics to gamify the experience.",
 };
