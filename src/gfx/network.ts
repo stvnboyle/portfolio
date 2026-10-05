@@ -27,9 +27,9 @@ const FILL_RATE = 7;
 const SIDE_ROOM = 110;
 /** Diagonal corner cut on the traces, px. */
 const CHAMFER = 6;
-/** Gap between a letter's trace and the second trace running alongside it (every other letter), px. */
-const PAIR_GAP = 3.5;
-/** Seconds between idle pulses along the extra traces, while the letters charge. */
+/** Gap between neighbouring traces where a robot's run side by side, px. */
+const LANE = 4;
+/** Seconds between idle pulses along the stubs, while the letters charge. */
 const IDLE_EVERY = 0.12;
 /** Seconds between pulses along the power ring, once it's traced out. */
 const RING_EVERY = 0.09;
@@ -53,16 +53,15 @@ const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const smooth = (v: number) => v * v * (3 - 2 * v);
 const zeros = (): Vec4[] => Array.from({ length: MAX_INTRO }, () => [0, 0, 0, 0]);
 const css = (c: Rgb, a = 1) => `rgb(${c.map((v) => Math.round(v * 255)).join(" ")} / ${a})`;
+/** Onto the pixel grid, so the 1px-ish traces stay sharp. */
+const snap = (v: number) => Math.round(v) + 0.5;
 
 type Wire = { node: number; letter: HTMLElement; path: SVGPathElement; pad: SVGCircleElement; hits: number; shown: number; charged: number | null };
 /**
- * The rest of the board: stubs that branch
- * off each robot to a via, and a second trace alongside every other letter's.
+ * The rest of the board: stubs that branch off a robot's free end to a via.
  * They carry idle pulses but charge nothing.
  */
-type Trace =
-  | { kind: "stub"; node: number; path: SVGPathElement; via: SVGCircleElement; side: number; drop: number; reach: number }
-  | { kind: "pair"; node: number; path: SVGPathElement; wire: Wire };
+type Stub = { node: number; path: SVGPathElement; via: SVGCircleElement; side: number; drop: number; reach: number; shown: boolean };
 /**
  * The power ring: a trace from each robot to the next, all the way round, so
  * the four are wired together and pass power between them while they work.
@@ -80,10 +79,10 @@ type Node = { x: number; y: number; feed: "below" | "above"; out: [number, numbe
 /**
  * The name's entrance, wired up. Four robots fly in and take up spots around
  * the name like nodes on a board (see NODES), and circuit traces run from each to the
- * letters it looks after. The robots are wired to each other too, in a power
- * ring round the name with pulses flowing both ways along it, so the four
- * work as one; stubs off to vias, paired traces and solder pads fill out a
- * busy board. Then they send pulses down the wires, a few at a time, while
+ * letters it looks after, side by side in their own lanes and peeling off one
+ * at a time, so no two ever cross. The robots are wired to each other too, in a power
+ * ring round the outside of it all with pulses flowing both ways along it, so the four
+ * work as one; a few stubs off to vias and solder pads fill out the board. Then they send pulses down the wires, a few at a time, while
  * idle pulses run about the rest of the board: each pulse that lands on a
  * letter charges it a step, filling it up from
  * the side its trace comes in from, in the robot's colour, and a fully charged letter cools to
@@ -138,25 +137,19 @@ export function createNetwork(hero: HTMLElement, canvas: HTMLCanvasElement, enab
     const node = Math.min(NODES - 1, Math.floor((i / letters.length) * NODES));
     return { node, letter, path: path(under, node, 0.4), pad: circle(node, 1.7, true), hits: 0, shown: 0, charged: null };
   });
-  // Where each robot's trace meets its bus.
-  const junctions = Array.from({ length: NODES }, (_, k) => circle(k, 2.4, false));
-  const traces: Trace[] = [
-    ...Array.from({ length: NODES * 2 }, (_, i): Trace => {
-      const node = i % NODES;
-      // The outer robots branch outwards first; everyone gets one each way.
-      const side = (i < NODES ? node < NODES / 2 : node >= NODES / 2) ? -1 : 1;
-      return {
-        kind: "stub",
-        node,
-        path: path(under, node, 0.2),
-        via: circle(node, 2.4, false),
-        side,
-        drop: 12 + random() * 34,
-        reach: 40 + random() * 120,
-      };
-    }),
-    ...wires.filter((_, i) => i % 2 === 0).map((wire): Trace => ({ kind: "pair", node: wire.node, path: path(under, wire.node, 0.16), wire })),
-  ];
+  const stubs: Stub[] = Array.from({ length: NODES * 2 }, (_, i) => {
+    const node = i % NODES;
+    return {
+      node,
+      path: path(under, node, 0.2),
+      via: circle(node, 2.4, false),
+      // One each way.
+      side: i < NODES ? -1 : 1,
+      drop: 12 + random() * 34,
+      reach: 40 + random() * 120,
+      shown: false,
+    };
+  });
 
   // The ring's segments, one fewer than the robots: a chain round the name that joins all four.
   const id = `ring-${Math.random().toString(36).slice(2, 8)}`;
@@ -213,7 +206,8 @@ export function createNetwork(hero: HTMLElement, canvas: HTMLCanvasElement, enab
   /** An orthogonal route with cut corners: vertical from (x0, y0) to `bus`, across to x1, vertical to y1. */
   const route = (x0: number, y0: number, bus: number, x1: number, y1: number) => {
     const dx = x1 - x0;
-    const c = Math.abs(dx) < CHAMFER * 2 ? 0 : CHAMFER;
+    // A short hop across is all corner: one diagonal.
+    const c = Math.min(CHAMFER, Math.abs(dx) / 2);
     if (!c) return `M${x0},${y0} V${y1}`;
     const sx = Math.sign(dx);
     const up = Math.sign(bus - y0) || 1;
@@ -297,57 +291,57 @@ export function createNetwork(hero: HTMLElement, canvas: HTMLCanvasElement, enab
     });
     intro.count = leaving > 0.9 ? 0 : NODES;
 
-    // The letter traces: from the robot to its bus, across, and into the letter from that side.
+    // The letter traces: out of the robot side by side, each along its own lane of the bus, and into its letter.
     const trace = t < FLY_IN ? 0 : smooth(clamp01((t - FLY_IN) / WIRE));
-    // Each robot's bus at its own height, so neighbouring traces never share a line.
-    const bus = (k: number) => (nodes[k].feed === "above" ? top - 12 : bottom + 10 + (k % 2) * 12);
+    // Each robot's bus at its own height, so neighbouring robots' traces never share a line.
+    const bus = (k: number) => snap(nodes[k].feed === "above" ? top - 12 : bottom + 10 + (k % 2) * 12);
+    // Which way is away from the letters, and whether the robot sits between them and its bus (so its traces double back).
+    const away = (k: number) => (nodes[k].feed === "above" ? -1 : 1);
+    const doubles = (k: number) => (bus(k) - nodes[k].y) * away(k) > 0;
     // Traces leave a robot from whichever end faces its bus.
-    const port = (n: Node, k: number) => (n.y > bus(k) ? n.y - robot * 0.55 : n.y + robot * 0.55);
-    const base = (n: Node) => n.y + robot * 0.55;
+    const port = (n: Node, k: number) => snap(n.y > bus(k) ? n.y - robot * 0.55 : n.y + robot * 0.55);
+    const base = (n: Node) => snap(n.y + robot * 0.55);
     const letterEnd = (w: Wire) => {
       const r = w.letter.getBoundingClientRect();
       const from = nodes[w.node].feed === "above" ? r.top + r.height * 0.24 : r.bottom - r.height * 0.14;
-      return [(r.left + r.right) / 2 - origin.left, from - origin.top];
+      return [snap((r.left + r.right) / 2 - origin.left), from - origin.top];
     };
-    for (const w of wires) {
-      const n = nodes[w.node];
-      const [lx, ey] = letterEnd(w);
-      w.path.setAttribute("d", route(n.x, port(n, w.node), bus(w.node), lx, ey));
-      reveal(w.path, trace);
-      w.pad.setAttribute("cx", String(lx));
-      w.pad.setAttribute("cy", String(ey));
-      w.pad.style.opacity = String(trace >= 1 ? 0.5 + 0.5 * w.shown : 0);
+    for (let k = 0; k < NODES; k++) {
+      const n = nodes[k];
+      const x = snap(n.x);
+      const ends = wires.filter((w) => w.node === k).map((w) => ({ w, end: letterEnd(w) }));
+      ends.forEach(({ w, end: [lx, ey] }, j) => {
+        // Ports in the letters' order (reversed where the traces double back), and the further a
+        // letter is, the further out its lane: the traces nest, and none crosses another.
+        const slot = (doubles(k) ? ends.length - 1 - j : j) - (ends.length - 1) / 2;
+        const px = x + slot * LANE;
+        const nearer = ends.filter((e) => Math.sign(e.end[0] - x) === Math.sign(lx - x) && Math.abs(e.end[0] - x) < Math.abs(lx - x)).length;
+        w.path.setAttribute("d", route(px, port(n, k), bus(k) + away(k) * nearer * LANE, lx, ey));
+        reveal(w.path, trace);
+        w.pad.setAttribute("cx", String(lx));
+        w.pad.setAttribute("cy", String(ey));
+        w.pad.style.opacity = String(trace >= 1 ? 0.5 + 0.5 * w.shown : 0);
+      });
     }
-    junctions.forEach((j, k) => {
-      j.setAttribute("cx", String(nodes[k].x));
-      j.setAttribute("cy", String(bus(k)));
-      j.style.opacity = String(trace);
-    });
 
-    // The rest of the board traces out just behind.
+    // Stubs trace out just behind, off the far end of each robot whose traces leave it for the name.
     const extra = t < FLY_IN ? 0 : smooth(clamp01((t - FLY_IN - 0.15) / WIRE));
-    for (const tr of traces) {
-      const n = nodes[tr.node];
-      if (tr.kind === "stub") {
-        // Stubs branch off away from the name: down from robots below it, up from the one above.
-        const v = n.feed === "above" ? -1 : 1;
-        const y00 = n.y + v * robot * 0.55;
-        const x0 = n.x + tr.side * 4;
-        const y0 = y00 + v * tr.drop;
-        const x1 = x0 + tr.side * (CHAMFER + tr.reach * Math.max(0.5, scale));
-        tr.path.setAttribute("d", `M${x0},${y00} V${y0} L${x0 + tr.side * CHAMFER},${y0 + v * CHAMFER} H${x1}`);
-        tr.via.setAttribute("cx", String(x1 + tr.side * 2.4));
-        tr.via.setAttribute("cy", String(y0 + v * CHAMFER));
-        tr.via.style.opacity = String(extra >= 1 ? 1 : 0);
-      } else {
-        const [lx, ey] = letterEnd(tr.wire);
-        const v = n.feed === "above" ? -1 : 1;
-        tr.path.setAttribute(
-          "d",
-          route(n.x + PAIR_GAP, port(n, tr.node), bus(tr.node) + v * PAIR_GAP, lx + PAIR_GAP, ey + v * 6)
-        );
-      }
-      reveal(tr.path, extra);
+    for (const stub of stubs) {
+      const n = nodes[stub.node];
+      // Only where there's room: not from an end already carrying traces, nor below the stacked robots.
+      stub.shown = spread && !doubles(stub.node);
+      stub.path.style.display = stub.via.style.display = stub.shown ? "" : "none";
+      if (!stub.shown) continue;
+      const v = away(stub.node);
+      const y00 = snap(n.y + v * robot * 0.55);
+      const x0 = snap(n.x + stub.side * LANE);
+      const y0 = snap(y00 + v * stub.drop);
+      const x1 = snap(x0 + stub.side * (CHAMFER + stub.reach * Math.max(0.5, scale)));
+      stub.path.setAttribute("d", `M${x0},${y00} V${y0} L${x0 + stub.side * CHAMFER},${y0 + v * CHAMFER} H${x1}`);
+      stub.via.setAttribute("cx", String(x1 + stub.side * 2.4));
+      stub.via.setAttribute("cy", String(y0 + v * CHAMFER));
+      stub.via.style.opacity = String(extra >= 1 ? 1 : 0);
+      reveal(stub.path, extra);
     }
 
     // The power ring: round the outside of the name, robot to robot, never across the letters.
@@ -364,22 +358,28 @@ export function createNetwork(hero: HTMLElement, canvas: HTMLCanvasElement, enab
         ];
     const side = robot * 0.7;
     const c = CHAMFER;
+    // The side robots join the ring from their outer sides, clear of their traces.
+    const outside = side + 8 + c;
+    // Below the stacked robots the ring is one line they all drop to.
+    const low = snap(Math.max(...nodes.map((n) => n.y)) + robot * 0.55 + 18);
     ring.forEach((segment, i) => {
       const [a, b] = pairs[i];
       const [na, nb] = [nodes[a], nodes[b]];
+      const [ax, ay, bx, by] = [snap(na.x), snap(na.y), snap(nb.x), snap(nb.y)];
       let d: string;
       if (!spread) {
-        const low = Math.max(na.y, nb.y) + robot * 0.55 + 16 + (i % 2) * 7;
-        d = route(na.x, base(na), low, nb.x, base(nb));
+        d = route(ax, base(na), low, bx, base(nb));
       } else if (i === 0) {
-        // Left robot down its side to the bottom robot's level, and across to it.
-        d = `M${na.x},${base(na)} V${nb.y - c} L${na.x + c},${nb.y} H${nb.x - side}`;
+        // Out of the left robot's far side, down to the bottom robot's level, and across to it.
+        const x = ax - outside;
+        d = `M${ax - side},${ay} H${x + c} L${x},${ay + c} V${by - c} L${x + c},${by} H${bx - side}`;
       } else if (i === 1) {
-        // Bottom robot across to the right robot's side, and up to it.
-        d = `M${na.x + side},${na.y} H${nb.x - c} L${nb.x},${na.y - c} V${base(nb)}`;
+        // Bottom robot across past the right robot, up, and into its far side.
+        const x = bx + outside;
+        d = `M${ax + side},${ay} H${x - c} L${x},${ay - c} V${by + c} L${x - c},${by} H${bx + side}`;
       } else {
-        // Right robot up its side to the top robot's level, and across to it.
-        d = `M${na.x},${na.y - robot * 0.55} V${nb.y + c} L${na.x - c},${nb.y} H${nb.x + side}`;
+        // Right robot up to the top robot's level, and across to it.
+        d = `M${ax},${snap(na.y - robot * 0.55)} V${by + c} L${ax - c},${by} H${bx + side}`;
       }
       segment.path.setAttribute("d", d);
       reveal(segment.path, trace);
@@ -413,9 +413,10 @@ export function createNetwork(hero: HTMLElement, canvas: HTMLCanvasElement, enab
         send(wire.path, k, wire, "charge");
       }
       // Meanwhile the rest of the board hums along.
-      if (t >= nextIdle) {
-        const tr = traces[Math.floor(random() * traces.length)];
-        send(tr.path, tr.node, null, "idle");
+      const idle = stubs.filter((stub) => stub.shown);
+      if (idle.length && t >= nextIdle) {
+        const stub = idle[Math.floor(random() * idle.length)];
+        send(stub.path, stub.node, null, "idle");
         nextIdle = t + IDLE_EVERY * (0.5 + random());
       }
     }

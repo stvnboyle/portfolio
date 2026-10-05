@@ -417,6 +417,7 @@ kbd {
   fill: none;
   stroke-width: 1.2;
   stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 /* The power ring joining the robots: a touch heavier than the other traces, with a faint glow. */
