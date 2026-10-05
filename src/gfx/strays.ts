@@ -1,4 +1,4 @@
-type Rgb = [number, number, number];
+import { PALETTE, type Rgb } from "./palette";
 
 type Stray = {
   /** Page coordinates (CSS px). */
@@ -15,19 +15,34 @@ type Stray = {
   age: number;
   life: number;
   seed: number;
+  /** Seconds until it next shorts out. */
+  fuse: number;
+  /** The current short: how far through it is (0..1, 1 = over), how long it lasts, and its two colours. */
+  short: number;
+  shortFor: number;
+  from: Rgb;
+  to: Rgb;
 };
 
 /** At most this many agents wander the page at once. */
-export const MAX_STRAYS = 9;
+export const MAX_STRAYS = 11;
 /** Robot height in px; mirrors the hero's agents. */
 export const ROBOT = 20;
 const CRUISE = 60;
 const FLOAT = 14;
+/**
+ * Seconds an arrival takes to fade in, flying straight on. Matches the hero
+ * fading its own copy out over the last HANDOFF px of its canvas (agents.wgsl).
+ */
+const FADE_IN = 0.6;
+
+const smooth = (t: number) => t * t * (3 - 2 * t);
 
 /**
  * Agents that have left the hero. Each picks a spot somewhere down the page,
  * flies there, then floats about it for a while, so a handful end up spread
- * across the site rather than streaming past. There are only ever a few, so
+ * across the site rather than streaming past. Every so often one shorts out:
+ * a slow swell of vivid colour that eases in and back out. There are only ever a few, so
  * they're simulated on the CPU and drawn with a 2D canvas fixed over the
  * viewport, positioned in page coordinates so they scroll with the content.
  */
@@ -81,6 +96,11 @@ export class StrayLayer {
       age: 0,
       life: 90 + r() * 60,
       seed: r() * 100,
+      fuse: 3 + r() * 8,
+      short: 1,
+      shortFor: 1,
+      from: color,
+      to: color,
     });
     if (!this.frame) {
       this.last = performance.now();
@@ -125,18 +145,33 @@ export class StrayLayer {
           ty += (py / d) * 30;
         }
       }
-      const k = 1 - Math.exp(-dt * 1.2);
+      // Straight on while it fades in, so it stays over the hero's copy of it.
+      const k = s.age < FADE_IN ? 0 : 1 - Math.exp(-dt * 1.2);
       s.vx += (tx - s.vx) * k;
       s.vy += (ty - s.vy) * k;
       s.x = Math.min(Math.max(s.x + s.vx * dt, 10), width - 10);
       s.y = Math.min(s.y + s.vy * dt, pageBottom);
       s.tint = Math.max(0, s.tint - dt / 30);
+      s.short = Math.min(1, s.short + dt / s.shortFor);
+      s.fuse -= dt;
+      if (s.fuse <= 0) this.short(s);
       return s.age < s.life;
     });
 
     this.draw(now / 1000);
     this.frame = this.strays.length ? requestAnimationFrame(this.tick) : 0;
   };
+
+  /** Starts a short: a couple of seconds drifting from one vivid colour to its neighbour. */
+  private short(s: Stray) {
+    const r = this.random;
+    const i = Math.floor(r() * PALETTE.length);
+    s.from = PALETTE[i];
+    s.to = PALETTE[(i + 1) % PALETTE.length];
+    s.short = 0;
+    s.shortFor = 2.2 + r() * 1.4;
+    s.fuse = s.shortFor + 4 + r() * 8;
+  }
 
   private draw(time: number) {
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -153,10 +188,17 @@ export class StrayLayer {
       const x = s.x - window.scrollX;
       const y = s.y - window.scrollY;
       if (y < -30 || y > h + 30) continue;
-      // Same look and brightness as in the hero; fade out at the end.
-      const alpha = Math.min(1, (s.life - s.age) / 4) * (0.5 + 0.5 * s.tint);
-      drawRobot(c, x, y, { vx: s.vx, vy: s.vy, tint: s.color, weight: s.tint, alpha, time, seed: s.seed });
+      // Same look and brightness as in the hero; fade in on arrival and out at the end.
+      const fade = smooth(Math.min(1, s.age / FADE_IN)) * Math.min(1, (s.life - s.age) / 4);
+      // A short swells in and eases back out, over whatever task colour it still carries.
+      const swell = Math.sin(Math.PI * s.short) ** 2;
+      const tint = mixRgb(s.color, mixRgb(s.from, s.to, smooth(s.short)), swell);
+      const weight = s.tint + (1 - s.tint) * swell;
+      c.shadowColor = rgb(tint, 1, 0.7 * swell);
+      c.shadowBlur = 10 * swell;
+      drawRobot(c, x, y, { vx: s.vx, vy: s.vy, tint, weight, alpha: fade * (0.5 + 0.5 * weight), time, seed: s.seed });
     }
+    c.shadowBlur = 0;
   }
 }
 

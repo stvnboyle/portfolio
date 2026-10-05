@@ -101,7 +101,9 @@ fn vs_agents(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -
   // Keep the name readable: idle agents fade out over the copy.
   let edge = max(max(view.copy.x - s.x, s.x - view.copy.z), max(view.copy.y - s.y, s.y - view.copy.w));
   let clear = mix(0.3, 1.0, smoothstep(-24.0, 12.0, edge));
-  out.alpha = (0.5 + 0.5 * tint.w) * mix(clear, 1.0, tint.w);
+  // Handed to the page (life 3, see agents.wgsl): fade out over the last HANDOFF px of the canvas.
+  let handed = select(1.0, smoothstep(0.0, 24.0, view.frame.y - s.y), alive > 2.5);
+  out.alpha = (0.5 + 0.5 * tint.w) * mix(clear, 1.0, tint.w) * handed;
   out.index = ii;
   out.thrust = 0.85 + 0.15 * sin(view.frame.w * 30.0 + f32(ii) * 1.7);
   out.exhaust = vec3f(exhaustDir, 1.8 + burn * 4.2);

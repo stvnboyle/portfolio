@@ -390,15 +390,15 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             const exited = Math.min(new Uint32Array(e, 0, 1)[0], MAX_EXITS);
             if (!exited) return;
             exits.write(noExits);
-            // Carry each leaver on from the bottom of the canvas, where it will be by now.
+            // Carry each leaver on from where it will be by now, near the bottom of the canvas.
             const late = (performance.now() - started) / 1000 + READBACK_MS / 2000;
             const rect = canvas.getBoundingClientRect();
             const items = new Float32Array(e, 16, 16);
             for (let k = 0; k < exited; k++) {
-              const [x, , vx, vy, r, g, b, tint] = items.subarray(k * 8, k * 8 + 8);
+              const [x, y, vx, vy, r, g, b, tint] = items.subarray(k * 8, k * 8 + 8);
               strays.release(
                 rect.left + window.scrollX + x + vx * late,
-                rect.bottom + window.scrollY + Math.max(vy, 10) * late,
+                rect.top + window.scrollY + y + vy * late,
                 vx,
                 vy,
                 [r, g, b],

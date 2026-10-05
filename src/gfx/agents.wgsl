@@ -6,7 +6,7 @@
 // State is three vec4s per agent:
 //   [3i]     position.xy, velocity.xy (CSS px)
 //   [3i + 1] tint rgb, tint weight
-//   [3i + 2] life (0 empty, 1 in the hero, 2 leaving), last task worked (-1 = none), -, -
+//   [3i + 2] life (0 empty, 1 in the hero, 2 leaving, 3 handed to the page), last task worked (-1 = none), -, -
 //
 // The hero is the world; the canvas runs on below it (the apron) over the page.
 // Agents drift off the sides for good. At the bottom, the CPU now and then lets
@@ -72,7 +72,7 @@ struct Step {
 struct Exits {
   // Leavers that reached the end of the apron; only the first `exitBudget` are recorded.
   count: atomic<u32>,
-  // Per exit: x, -, velocity.xy; then tint rgb, weight.
+  // Per exit: position.xy, velocity.xy; then tint rgb, weight.
   items: array<vec4f, 4>,
 }
 
@@ -93,6 +93,10 @@ struct Exits {
 const EMPTY: f32 = 0.0;
 const IN_HERO: f32 = 1.0;
 const LEAVING: f32 = 2.0;
+// Leaving, and already handed to the CPU: fading out over the last of the apron.
+const HANDED: f32 = 3.0;
+// How far above the end of the canvas a leaver is handed over. Mirrored in agents-render.wgsl.
+const HANDOFF: f32 = 24.0;
 
 fn hash(x: f32) -> f32 {
   return fract(sin(x * 12.9898 + swarm.seed * 78.233) * 43758.5453);
@@ -144,18 +148,24 @@ fn leave(i: u32, me: vec4f, tint: vec4f, info: vec4f) {
   let p = me.xy + v * swarm.dt;
   let faded = vec4f(tint.rgb, max(0.0, tint.w - swarm.dt / 20.0));
 
-  if (p.y > swarm.world.y + swarm.apron) {
-    // End of the canvas: hand it to the CPU to carry on down the page.
+  let end = swarm.world.y + swarm.apron;
+  var state = info;
+  if (state.x < 2.5 && p.y > end - HANDOFF) {
+    // Nearly at the end of the canvas: hand it to the CPU to carry on down the page. Its copy
+    // there fades in while this one flies on and fades out, so nothing blinks at the seam.
     let slot = atomicAdd(&exits.count, 1u);
     if (slot < swarm.exitBudget) {
-      exits.items[2u * slot] = vec4f(p.x, 0.0, v);
+      exits.items[2u * slot] = vec4f(p, v);
       exits.items[2u * slot + 1u] = faded;
     }
+    state.x = HANDED;
+  }
+  if (p.y > end) {
     write(i, vec4f(p, v), faded, vec4f(EMPTY, -1.0, 0.0, 0.0));
     return;
   }
   atomicAdd(&counts.leaving, 1u);
-  write(i, vec4f(p, v), faded, info);
+  write(i, vec4f(p, v), faded, state);
 }
 
 // A robot in the name's formation. info.z is 1 + its point while it's

@@ -72,7 +72,7 @@ export function runScene(
 
     let onScreen = true;
     const visibility = new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting));
-    visibility.observe(hero);
+    visibility.observe(canvas);
     cleanups.push(() => visibility.disconnect());
 
     const time = clock(gpu);
