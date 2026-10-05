@@ -62,7 +62,7 @@ export const TIMELINE: TimelineEvent[] = [
     org: hedgehog.company,
     period: "2024 — Present",
     summary:
-      "Manages internal and forward-deployed engineering teams: mentorship, code review, pairing, career development and conducting technical interviews.",
+      "Manages internal and forward-deployed engineering teams: mentorship, code review, pairing, career development and conducting technical interviews. Still hands-on, writing and shipping code alongside the teams.",
   },
   {
     id: "hedgehog-lead",
