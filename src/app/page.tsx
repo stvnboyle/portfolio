@@ -3,6 +3,7 @@ import { Enhancements } from "@/components/Enhancements";
 import { GlowHeadings } from "@/components/GlowHeadings";
 import { AvatarBot } from "@/components/AvatarBot";
 import { Host } from "@/components/Host";
+import { Prompt } from "@/components/Prompt";
 import { CommandMenu, type Command } from "@/components/CommandMenu";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { Timeline } from "@/components/Timeline";
@@ -22,7 +23,7 @@ export default async function Page() {
     <>
       <Enhancements />
       <GlowHeadings />
-      <Nav commands={commands(articles)} />
+      <Nav commands={commands(articles)} posts={articles.map((a) => a.slug)} />
 
       <main>
         <Hero />
@@ -63,21 +64,17 @@ function commands(articles: Article[]): Command[] {
   ];
 }
 
-function Nav({ commands }: { commands: Command[] }) {
+function Nav({ commands, posts }: { commands: Command[]; posts: string[] }) {
   return (
     <header className="nav">
       <div className="nav__inner">
         {/* A shell prompt: `$ stevenboyle.dev` at the top, `$ cd stevenboyle.dev/<section>` in a section,
-            the command and path typed out as you move (lib/seek.ts). */}
-        <a className="nav__brand" href="#top" aria-label="stevenboyle.dev, back to top">
-          <span className="nav__prompt" aria-hidden>
-            $
-          </span>
+            the command and path typed out as you move (lib/seek.ts). Click it to type your own. */}
+        <Prompt className="nav__brand" posts={posts} home>
           <span className="nav__cmd" aria-hidden />
           <Host />
           <span className="nav__path" aria-hidden />
-          <i className="caret" aria-hidden />
-        </a>
+        </Prompt>
         <nav className="nav__links" aria-label="Sections">
           <a href="#about">about</a>
           <a data-drop href="#timeline">

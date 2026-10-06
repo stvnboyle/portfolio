@@ -5,6 +5,7 @@ import { profile } from "@/data/profile";
 import { PostContents } from "@/components/PostContents";
 import { ReadingProgress } from "@/components/ReadingProgress";
 import { Host } from "@/components/Host";
+import { Prompt } from "@/components/Prompt";
 import { SeekLinks } from "@/components/SeekLinks";
 
 /** Every post is prerendered; anything else is a 404. */
@@ -77,17 +78,14 @@ export default async function PostPage({ params }: Params) {
       <SeekLinks />
       <header className="post-bar">
         <div className="post-bar__inner">
-          {/* The prompt has the post open in vi: the caret sits at the end of its path. */}
-          <p className="post-bar__crumb">
-            <span className="nav__prompt" aria-hidden>
-              $
-            </span>
+          {/* The prompt has the post open in vi: the caret sits at the end of its path. Click it to type. */}
+          <Prompt className="post-bar__crumb" posts={articles.map((a) => a.slug)}>
             <span className="nav__cmd" aria-hidden>
               vi{" "}
             </span>
-            <a className="nav__brand" href="/" aria-label="stevenboyle.dev, home">
+            <span className="nav__brand">
               <Host />
-            </a>
+            </span>
             {/* A long slug truncates in the middle, keeping the .md in view. */}
             <span className="post-bar__path" aria-hidden>
               /writing/{article.slug}
@@ -95,8 +93,7 @@ export default async function PostPage({ params }: Params) {
             <span className="post-bar__ext" aria-hidden>
               .md
             </span>
-            <i className="caret" aria-hidden />
-          </p>
+          </Prompt>
           <a className="post-bar__back" href="/">
             cd ..
           </a>
