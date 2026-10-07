@@ -63,7 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               jobTitle: profile.roles.join(" / "),
               email: `mailto:${profile.email}`,
               address: { "@type": "PostalAddress", addressLocality: profile.location },
-              sameAs: [profile.links.linkedin, profile.links.medium],
+              sameAs: [profile.links.github, profile.links.linkedin, profile.links.medium],
               description: profile.intro,
             }),
           }}

@@ -52,6 +52,7 @@ function commands(articles: Article[]): Command[] {
     { id: "go-contact", group: "go to", label: "contact", hint: "#contact", href: "#contact" },
     { id: "copy-email", group: "contact", label: "copy email address", hint: profile.email, copy: profile.email },
     { id: "email", group: "contact", label: "send an email", hint: "mailto", href: `mailto:${profile.email}` },
+    { id: "github", group: "elsewhere", label: "github", hint: host(profile.links.github), href: profile.links.github, external: true },
     { id: "linkedin", group: "elsewhere", label: "linkedin", hint: host(profile.links.linkedin), href: profile.links.linkedin, external: true },
     { id: "medium", group: "elsewhere", label: "medium", hint: host(profile.links.medium), href: profile.links.medium, external: true },
     ...articles.slice(0, 4).map((a, i) => ({
@@ -302,6 +303,7 @@ function Writing({ articles }: { articles: Article[] }) {
 
 function Footer({ rev }: { rev: string }) {
   const links: Array<[string, string]> = [
+    ["github", profile.links.github],
     ["linkedin", profile.links.linkedin],
     ["medium", profile.links.medium],
   ];

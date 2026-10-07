@@ -15,6 +15,7 @@ export const profile = {
     "I've spent over a decade building software for the web, growing from IC to leading engineering teams - owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
   ],
   links: {
+    github: "https://github.com/stvnboyle",
     linkedin: "https://linkedin.com/in/steven-buchanan-boyle-114384139",
     medium: "https://medium.com/@stevenboyle64",
     gitgood: "https://gitgood.io",

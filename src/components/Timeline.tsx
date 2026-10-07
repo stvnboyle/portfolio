@@ -51,8 +51,7 @@ export function Timeline() {
             ))}
           </p>
           <p className="commit__summary">
-            Building a GenAI EdTech platform, with a core focus on infrastructure and agentic engineering, developing across
-            the stack.
+            <Linkified text="Building a GenAI workload reduction platform for teachers - teachmate.com, with a core focus on infrastructure and agentic engineering." />
           </p>
         </div>
       </li>
