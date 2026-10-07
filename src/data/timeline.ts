@@ -68,15 +68,14 @@ export const TIMELINE: TimelineEvent[] = [
     id: "hedgehog-lead",
     lane: "work",
     ref: "new role",
-    date: "2022",
+    date: "2023",
     title: "Technical Lead",
     org: hedgehog.company,
-    period: "2022 — Present",
+    period: "2023 — Present",
     summary:
       "Owns full-stack architecture and engineering standards across the business, for clients ranging from startups to large enterprise customers. Leads technical delivery for multiple products serving hundreds of thousands of users.",
     points: hedgehog.points,
     engagements: hedgehog.engagements,
-    stack: hedgehog.stack,
   },
   {
     id: "hedgehog-senior",
@@ -85,7 +84,7 @@ export const TIMELINE: TimelineEvent[] = [
     date: "2021",
     title: "Senior Software Engineer",
     org: hedgehog.company,
-    period: "2021 — 2022",
+    period: "2021 — 2023",
     summary:
       "Worked across greenfield and brownfield engagements, and began influencing decisions across the frontend department: state management, async data fetching, TanStack Query, and server-side rendering. Pioneered the company's adoption of Next.js.",
   },
