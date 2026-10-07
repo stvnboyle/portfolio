@@ -56,7 +56,7 @@ export const TIMELINE: TimelineEvent[] = [
   {
     id: "hedgehog-manager",
     lane: "work",
-    ref: "new role",
+    ref: "promoted",
     date: "2024",
     title: "Engineering Manager",
     org: hedgehog.company,
@@ -67,7 +67,7 @@ export const TIMELINE: TimelineEvent[] = [
   {
     id: "hedgehog-lead",
     lane: "work",
-    ref: "new role",
+    ref: "promoted",
     date: "2023",
     title: "Technical Lead",
     org: hedgehog.company,
