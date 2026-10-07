@@ -51,7 +51,7 @@ export function Timeline() {
             ))}
           </p>
           <p className="commit__summary">
-            <Linkified text="Building a GenAI workload reduction platform for teachers - teachmate.com, with a core focus on infrastructure and agentic engineering." />
+            <Linkified text="Building a GenAI workload reduction platform for teachers, with a core focus on infrastructure and agentic engineering." />
           </p>
         </div>
       </li>
