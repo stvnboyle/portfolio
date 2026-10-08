@@ -9,10 +9,10 @@ export const profile = {
   email: "iboyleyv1@gmail.com",
   tagline: "I like building things and figuring out the tricky problems along the way.",
   intro:
-    "I've spent the last decade building software for the web, growing from IC to leading engineering teams and owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
+    "I've spent the last decade building software for the web, growing from IC to leading engineering teams and owning the whole path from architecture to delivery. I enjoy working hands-on with customers across pre-sale and post-sale, from the first technical conversation through to launch and beyond.",
   /** The about section's paragraphs; the first is also the short intro above. */
   about: [
-    "I've spent over a decade building software for the web, growing from IC to leading engineering teams - owning the whole path from architecture to delivery. I enjoy working hands-on with customers, from the first technical conversation through to launch and beyond.",
+    "I've spent over a decade building software for the web, growing from IC to leading engineering teams - owning the whole path from architecture to delivery. I enjoy working hands-on with customers across pre-sale and post-sale, from the first technical conversation through to launch and beyond.",
   ],
   links: {
     github: "https://github.com/stvnboyle",
