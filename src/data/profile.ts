@@ -216,7 +216,6 @@ export const skillGroups = [
 
 export const hobbies = [
   "Deep nature breakaways and walking trails",
-  "Horror movies",
   "Walkies with the pooches",
   "Gym",
   "Nerding out",
