@@ -138,9 +138,9 @@ export const roles: Role[] = [
     end: "2019-01",
     location: "Newcastle upon Tyne",
     summary:
-      "Offered the role immediately prior to graduating. Built multi-dimensional databases for rapid reporting across dealerships and sales, supported the BI team, and maintained the systems keeping stock data flowing across brand and third-party websites.",
+      "Offered the role immediately prior to graduating. Built and maintained multi-dimensional databases for rapid reporting across dealerships and sales, supported the BI team, and kept stock data flowing across brand and third-party websites.",
     points: [
-      "Developed multi-dimensional databases for rapid reporting across dealerships, sales and internal products",
+      "Developed and maintained multi-dimensional databases for rapid reporting across dealerships, sales and internal products",
       "Maintained legacy systems and CRON data feeds updating stock across third-party and brand websites",
       "Used SQL to help stakeholders understand trends; built PoCs and rebuilt legacy PHP applications",
     ],
