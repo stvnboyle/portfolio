@@ -15,6 +15,8 @@ export type Article = {
   iso: string;
   tags: string[];
   excerpt: string;
+  /** The post's preview image on Medium: the file name of its first image, if it has one (see `coverUrl`). */
+  cover: string | null;
   readingMinutes: number;
   /** The post body, cleaned up for this site (see `prepare`). */
   html: string;
@@ -57,6 +59,11 @@ function decodeEntities(s: string): string {
 function firstMatch(block: string, re: RegExp): string {
   const m = block.match(re);
   return m ? m[1] : "";
+}
+
+/** A post's cover from Medium's image resizer, cropped to fill `width`×`height`. PNG unless `webp`. */
+export function coverUrl(cover: string, width: number, height: number, webp = false): string {
+  return `https://miro.medium.com/v2/resize:fill:${width}:${height}/${webp ? "format:webp/" : ""}${cover}`;
 }
 
 function stripHtml(html: string): string {
@@ -146,6 +153,7 @@ function parseFeed(xml: string): Article[] {
       iso: date.toISOString(),
       date: date.toLocaleDateString("en-GB", { year: "numeric", month: "short", day: "numeric" }),
       tags,
+      cover: firstMatch(content, /<img[^>]*\bsrc="https:\/\/cdn-images-1\.medium\.com\/max\/\d+\/([^"\/]+)"/) || null,
       excerpt: text.slice(0, 220).trim() + (text.length > 220 ? "…" : ""),
       readingMinutes: Math.max(1, Math.round(words / 220)),
       ...prepare(content),

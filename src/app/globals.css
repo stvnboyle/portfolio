@@ -1922,6 +1922,31 @@ kbd {
   border-bottom: 1px solid var(--line);
 }
 
+/* With a cover, the row centres on it. */
+.post:has(.post__cover) {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+/* The post's preview image from Medium, cropped to one shape so the rows line up. */
+.post__cover {
+  display: block;
+  width: 112px;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  outline: 1px solid var(--line);
+  outline-offset: -1px;
+  background: var(--surface-2);
+  transition: outline-color 0.4s var(--ease), filter 0.4s var(--ease);
+}
+
+.post:hover .post__cover {
+  outline-color: var(--line-strong);
+  filter: brightness(1.08);
+}
+
 .post__title {
   font-size: var(--text-lg);
   letter-spacing: -0.02em;
@@ -1957,6 +1982,26 @@ kbd {
 
   .post__title {
     grid-column: 1 / -1;
+  }
+
+  /* The cover sits beside the title and the metadata under it. */
+  .post:has(.post__cover) {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: 16px;
+  }
+
+  .post__cover {
+    grid-row: span 2;
+    width: 84px;
+  }
+
+  .post:has(.post__cover) .post__title {
+    grid-column: 2 / -1;
+    align-self: end;
+  }
+
+  .post:has(.post__cover) :is(.post__meta, .arrow) {
+    align-self: start;
   }
 }
 

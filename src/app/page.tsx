@@ -8,7 +8,7 @@ import { CommandMenu, type Command } from "@/components/CommandMenu";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { Timeline } from "@/components/Timeline";
 import { TimelineLight } from "@/components/TimelineLight";
-import { getArticles, type Article } from "@/data/articles";
+import { coverUrl, getArticles, type Article } from "@/data/articles";
 import { getBuildInfo } from "@/data/build";
 import { EXPERIENCES } from "@/data/experiences";
 import { PROJECTS } from "@/data/projects";
@@ -284,6 +284,18 @@ function Writing({ articles }: { articles: Article[] }) {
           {articles.map((article) => (
             <li key={article.url}>
               <a className="post" href={`/writing/${article.slug}`}>
+                {article.cover && (
+                  <img
+                    className="post__cover"
+                    src={coverUrl(article.cover, 224, 140, true)}
+                    srcSet={`${coverUrl(article.cover, 448, 280, true)} 2x`}
+                    alt=""
+                    width={112}
+                    height={70}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
                 <span className="post__title">{article.title}</span>
                 <span className="post__meta">
                   {article.date} · {article.readingMinutes} min

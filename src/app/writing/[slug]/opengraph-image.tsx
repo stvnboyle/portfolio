@@ -1,13 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
-import { getArticles, toneOf } from "@/data/articles";
+import { coverUrl, getArticles, toneOf } from "@/data/articles";
 
 /**
  * Each post's link preview: its title on the site's dark ground, in the post's
  * glow colour, as a commit on a git-graph lane with one of the swarm's robots
- * on it. Rendered once per post at build (static export), at 2× for sharp
- * previews on high-density screens.
+ * on it, beside the post's preview image from Medium. Rendered once per post at
+ * build (static export), at 2× for sharp previews on high-density screens.
  */
 export const dynamicParams = false;
 export const alt = "A post from Steven Boyle's writing";
@@ -28,8 +28,28 @@ export async function generateStaticParams() {
   return (await getArticles()).map((a) => ({ slug: a.slug }));
 }
 
-/** Bigger for short titles, smaller for long ones, so every title fits in three lines. */
-const titleSize = (title: string) => (title.length <= 40 ? 64 : title.length <= 70 ? 54 : 44);
+/** The cover's frame, in layout units: the shape the writing list crops it to. */
+const COVER = { width: 520, height: 325 };
+
+/** Bigger for short titles, smaller for long ones, so every title fits: three lines, or five beside a cover. */
+const titleSize = (title: string, narrow: boolean) => {
+  const [short, mid, long] = narrow ? [48, 42, 36] : [64, 54, 44];
+  return title.length <= 40 ? short : title.length <= 70 ? mid : long;
+};
+
+/** The cover as a data URI, or null if the post has none or Medium can't be reached (the card then goes without). */
+async function loadCover(cover: string | null): Promise<string | null> {
+  if (!cover) return null;
+  try {
+    const res = await fetch(coverUrl(cover, COVER.width * S, COVER.height * S));
+    if (!res.ok) throw new Error(`responded ${res.status}`);
+    const type = res.headers.get("content-type") ?? "image/png";
+    return `data:${type};base64,${Buffer.from(await res.arrayBuffer()).toString("base64")}`;
+  } catch (err) {
+    console.warn(`[medium] no cover for ${cover}: ${(err as Error).message}`);
+    return null;
+  }
+}
 
 /** One of the swarm's robots (gfx/agents-render.wgsl): a rounded head, a visor and two ears. */
 function Robot({ tone, px }: { tone: string; px: number }) {
@@ -51,9 +71,10 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const tone = toneOf(index);
   const date = new Date(article.iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
-  const [regular, medium] = await Promise.all([
+  const [regular, medium, cover] = await Promise.all([
     readFile(join(FONTS, "GeistMono-Regular.ttf")),
     readFile(join(FONTS, "GeistMono-Medium.ttf")),
+    loadCover(article.cover),
   ]);
 
   const u = (n: number) => n * S;
@@ -133,19 +154,36 @@ export default async function Image({ params }: { params: Promise<{ slug: string
             <span style={{ color: MUTED }}>id {article.id.slice(0, 7)}</span>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              flexGrow: 1,
-              alignItems: "center",
-              fontSize: u(titleSize(article.title)),
-              fontWeight: 500,
-              lineHeight: 1.15,
-              letterSpacing: "-0.03em",
-              marginTop: u(-20),
-            }}
-          >
-            {article.title}
+          <div style={{ display: "flex", flexGrow: 1, alignItems: "center", marginTop: u(-20) }}>
+            <div
+              style={{
+                display: "flex",
+                flex: 1,
+                fontSize: u(titleSize(article.title, cover !== null)),
+                fontWeight: 500,
+                lineHeight: 1.15,
+                letterSpacing: "-0.03em",
+              }}
+            >
+              {article.title}
+            </div>
+            {/* The post's preview image from Medium, framed and lit in the post's colour. */}
+            {cover && (
+              <div
+                style={{
+                  display: "flex",
+                  flexShrink: 0,
+                  marginLeft: u(44),
+                  marginRight: u(-32),
+                  borderRadius: u(16),
+                  overflow: "hidden",
+                  border: `${u(1)}px solid ${tone}66`,
+                  boxShadow: `0 0 ${u(48)}px ${tone}33`,
+                }}
+              >
+                <img src={cover} width={u(COVER.width)} height={u(COVER.height)} style={{ objectFit: "cover" }} />
+              </div>
+            )}
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", fontSize: u(22) }}>
