@@ -68,7 +68,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const articles = await getArticles();
   const index = articles.findIndex((a) => a.slug === slug);
   const article = articles[index];
-  const tone = toneOf(index);
+  const tone = toneOf(articles, index);
   const date = new Date(article.iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
   const [regular, medium, cover] = await Promise.all([

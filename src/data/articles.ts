@@ -172,11 +172,14 @@ async function live(): Promise<Article[]> {
   }
 }
 
-/** Each post takes one of the glow colours, in order. Mirrors --glow-1..4 in globals.css. */
-const TONES = ["#1aebd1", "#ff3d99", "#9450ff", "#2a7aff"];
+/** The glow colours posts cycle through, oldest post first. The same four as --glow-1..4 in globals.css. */
+const TONES = ["#9450ff", "#ff3d99", "#1aebd1", "#2a7aff"];
 
-/** The glow colour of the post at `index` in getArticles(), for its page and preview card. */
-export const toneOf = (index: number) => TONES[index % TONES.length];
+/**
+ * The glow colour of the post at `index` in getArticles(), for its page and preview card. Counted
+ * from the oldest post, so each new post takes the next colour and the earlier ones keep theirs.
+ */
+export const toneOf = (articles: Article[], index: number) => TONES[(articles.length - 1 - index) % TONES.length];
 
 let cached: Promise<Article[]> | undefined;
 

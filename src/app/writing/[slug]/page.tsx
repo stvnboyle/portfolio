@@ -65,7 +65,7 @@ export default async function PostPage({ params }: Params) {
   // Newest first, so "newer" is the one before.
   const newer = articles[index - 1];
   const older = articles[index + 1];
-  const tone = toneOf(index);
+  const tone = toneOf(articles, index);
   const longDate = new Date(article.iso).toLocaleDateString("en-GB", {
     weekday: "short",
     day: "numeric",
