@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { inlineCode } from "./inline-code";
 
 export type Heading = { id: string; text: string; level: 2 | 3 };
 
@@ -87,20 +88,47 @@ function slugify(text: string): string {
 }
 
 /**
+ * Medium's feed drops inline code, so it's put back from the marked-up text in inline-code.ts.
+ * A space in a snippet also matches the non-breaking spaces Medium puts in.
+ */
+function restoreInlineCode(html: string, id: string): string {
+  for (const snippet of inlineCode[id] ?? []) {
+    // Text and code alternate between the backticks; each part is captured so it goes back as found.
+    const parts = snippet.split("`").map((part) =>
+      part
+        .replace(/&/g, "&amp;")
+        .replace(/'/g, "&#39;")
+        .replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&")
+        .replace(/ /g, "[ \u00a0]"),
+    );
+    const found = new RegExp(parts.map((part) => `(${part})`).join(""));
+    if (!found.test(html)) {
+      console.warn(`[medium] inline code not found in post ${id}: ${snippet}`);
+      continue;
+    }
+    html = html.replace(found, (_, ...groups: string[]) =>
+      parts.map((_, i) => (i % 2 ? `<code>${groups[i]}</code>` : groups[i])).join(""),
+    );
+  }
+  return html;
+}
+
+/**
  * Cleans a post's HTML from the feed for this site. The source is Steven's own
  * posts, but it's still treated as untrusted: scripts and inline handlers go.
  *  - Medium's tracking pixel is dropped.
  *  - Embedly iframes (Giphy) become plain GIFs; any other embed becomes a link.
+ *  - Inline code, which the feed drops, is put back (see `restoreInlineCode`).
  *  - Code blocks keep their line breaks, wrapped in <code>.
  *  - h3/h4 become h2/h3 with ids, collected for the contents list.
  *  - Images load lazily (bar the first), links open in a new tab.
  */
-function prepare(raw: string): { html: string; toc: Heading[] } {
+function prepare(raw: string, id: string): { html: string; toc: Heading[] } {
   const toc: Heading[] = [];
   const used = new Set<string>();
   let images = 0;
 
-  const html = raw
+  const html = restoreInlineCode(raw, id)
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/\son[a-z]+="[^"]*"/gi, "")
     .replace(/<img[^>]*medium\.com\/_\/stat[^>]*>/g, "")
@@ -145,10 +173,12 @@ function parseFeed(xml: string): Article[] {
     const words = text ? text.split(" ").length : 0;
     const date = new Date(pubDate);
 
+    const id = url.split("-").pop() ?? "";
+
     return {
       title,
       slug: slugify(title),
-      id: url.split("-").pop() ?? "",
+      id,
       url,
       iso: date.toISOString(),
       date: date.toLocaleDateString("en-GB", { year: "numeric", month: "short", day: "numeric" }),
@@ -156,7 +186,7 @@ function parseFeed(xml: string): Article[] {
       cover: firstMatch(content, /<img[^>]*\bsrc="https:\/\/cdn-images-1\.medium\.com\/max\/\d+\/([^"\/]+)"/) || null,
       excerpt: text.slice(0, 220).trim() + (text.length > 220 ? "…" : ""),
       readingMinutes: Math.max(1, Math.round(words / 220)),
-      ...prepare(content),
+      ...prepare(content, id),
     };
   });
 }

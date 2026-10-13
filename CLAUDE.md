@@ -30,7 +30,8 @@ Steven iterates visually and is specific about taste — read this before touchi
   (scroll reveal, sticky nav).
 - `src/data/` — `profile.ts` (roles, education, links — source of truth for content),
   `timeline.ts` (career events + lane spans), `experiences.ts` (DX/AX/UX copy), `articles.ts`
-  (Medium RSS at build, with a baked fallback), `build.ts` (git rev in the footer).
+  (Medium RSS at build, with a baked fallback), `inline-code.ts` (the feed drops inline code, so each
+  post's backticked words are listed here and put back at build), `build.ts` (git rev in the footer).
 - Don't invent career facts. Missing content (e.g. the Senior Software Engineer 2019–2022
   description) should be asked for.
 
