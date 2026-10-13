@@ -203,7 +203,7 @@ async function live(): Promise<Article[]> {
 }
 
 /** The glow colours posts cycle through, oldest post first. The same four as --glow-1..4 in globals.css. */
-const TONES = ["#9450ff", "#ff3d99", "#1aebd1", "#2a7aff"];
+const TONES = ["#ff3d99", "#2a7aff", "#9450ff", "#1aebd1"];
 
 /**
  * The glow colour of the post at `index` in getArticles(), for its page and preview card. Counted
