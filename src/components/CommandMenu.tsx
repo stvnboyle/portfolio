@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { seek } from "@/lib/seek";
+import { toggleTheme } from "@/lib/theme";
 
 export type Command = {
   id: string;
@@ -9,7 +10,7 @@ export type Command = {
   label: string;
   /** Short right-aligned detail, e.g. a domain or shortcut. */
   hint?: string;
-} & ({ href: string; external?: boolean } | { copy: string });
+} & ({ href: string; external?: boolean } | { copy: string } | { action: "toggle-theme" });
 
 /**
  * A ⌘K palette: the site's one nod to the command line. Built on <dialog> so
@@ -57,6 +58,10 @@ export function CommandMenu({ commands }: { commands: Command[] }) {
 
   const run = async (command: Command | undefined) => {
     if (!command) return;
+    if ("action" in command) {
+      toggleTheme();
+      return;
+    }
     if ("copy" in command) {
       try {
         await navigator.clipboard.writeText(command.copy);

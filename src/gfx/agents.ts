@@ -4,6 +4,7 @@ import renderShader from "./agents-render.wgsl";
 import skyShader from "./sky.wgsl";
 import trailsShader from "./trails.wgsl";
 import { PALETTE, type Rgb } from "./palette";
+import { currentTheme } from "@/lib/theme";
 import { onCopy, pointerIn, runScene, type StartScene } from "./scene";
 import { MAX_STRAYS, StrayLayer } from "./strays";
 import { seeded } from "./random";
@@ -297,9 +298,11 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
         return [1.05, w / Math.max(1, h), t, h / Math.max(1, canvasSize()[1])];
       };
       const trailView = () => ({ view: [...world(), trailW, trailH] });
+      // The sky has a paper version for the light theme, read every frame so the toggle takes effect at once.
+      const look = () => [currentTheme() === "light" ? 1 : 0, 0, 0, 0];
       const sky = effect(gpu, skyShader, {
         label: "agents-sky",
-        set: { sky: { frame: skyFrame(0), tint: mood }, trails: trailView(), trail: trail.read },
+        set: { sky: { frame: skyFrame(0), tint: mood, look: look() }, trails: trailView(), trail: trail.read },
       });
 
       /* --- tasks ---------------------------------------------------------- */
@@ -621,7 +624,7 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
             : [0.35, 0.45, 0.95, 0];
           const k = Math.min(1, dt * 0.6);
           mood = mood.map((v, i) => v + (tone[i] - v) * k) as typeof mood;
-          sky.set({ sky: { frame: skyFrame(elapsed), tint: mood }, trails: trailView(), trail: trail.read });
+          sky.set({ sky: { frame: skyFrame(elapsed), tint: mood, look: look() }, trails: trailView(), trail: trail.read });
 
           frame.pass({ target: canvasSurface, clear: [0, 0, 0, 0] }, (pass) => {
             pass.draw(sky);

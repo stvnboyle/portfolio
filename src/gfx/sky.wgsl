@@ -8,6 +8,8 @@ struct Sky {
   frame: vec4f,
   // rgb of the open tasks, how much is going on (0..1)
   tint: vec4f,
+  // x: 1 for the light theme (data-theme, lib/theme.ts), 0 for dark
+  look: vec4f,
 }
 
 // Hero width, height (px), trail grid width, height (cells).
@@ -59,8 +61,55 @@ fn trailAt(c: vec2i) -> vec3f {
   return trail[u32(q.y * size.x + q.x)].rgb;
 }
 
+// The light theme: the same sky on paper. Colour is laid on like ink (mixed in)
+// rather than added as light, which would wash out against the pale page.
+fn paperSky(uv: vec2f, v: f32) -> vec3f {
+  let horizon = sky.frame.x;
+  let aspect = sky.frame.y;
+  let t = sky.frame.z;
+  let tint = sky.tint.rgb;
+  let activity = sky.tint.a;
+
+  let page = vec3f(0.965, 0.965, 0.957);
+  let above = horizon - v;
+
+  // A cool, slightly deeper grey at the horizon, settling back to the page.
+  var col = mix(vec3f(0.9, 0.91, 0.935), page, smoothstep(-0.05, 0.6, above));
+
+  let band = exp(-abs(above) * 10.0);
+  col = mix(col, tint, band * (0.05 + 0.1 * activity));
+
+  let x = uv.x * aspect;
+  let fold = fbm(vec2f(x * 0.8 + t * 0.012, t * 0.02));
+  let curtain = smoothstep(0.42, 0.85, fbm(vec2f(x * 1.6 + fold * 2.2, above * 2.5 - t * 0.015)));
+  let reach = smoothstep(0.0, 0.06, above) * (1.0 - smoothstep(0.08, 0.42, above));
+  let auroraColor = mix(vec3f(0.35, 0.45, 0.95), tint, 0.55);
+  col = mix(col, auroraColor, curtain * reach * (0.06 + 0.05 * activity));
+
+  // Trails on the dot grid: faint graphite at rest, the trail's colour where the swarm has worked.
+  let px = vec2f(uv.x, v) * trails.view.xy;
+  let fadeOut = 1.0 - smoothstep(0.85, 1.0, v);
+  let centre = (floor(px / DOT_SPACING) + 0.5) * DOT_SPACING;
+  let lit = 1.0 - exp(-trailAt(vec2i(floor(centre / trails.view.xy * trails.view.zw))) * 3.0);
+  let glow = max(lit.r, max(lit.g, lit.b));
+  let aa = max(fwidth(px.x), 1e-3);
+  let dot = (1.0 - smoothstep(-0.5 * aa, 0.5 * aa, length(px - centre) - (0.8 + 1.3 * glow))) * fadeOut;
+  col = mix(col, vec3f(0.42, 0.44, 0.52), dot * 0.22);
+  let ink = lit / max(glow, 1e-3) * 0.85;
+  col = mix(col, ink, dot * min(1.0, glow * 1.6));
+
+  return mix(col, page, smoothstep(0.7, 1.0, v));
+}
+
 @fragment
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
+  if (sky.look.x > 0.5) {
+    let v = uv.y / sky.frame.w;
+    var col = paperSky(uv, v);
+    col += (hash(uv * vec2f(1733.0, 977.0) + sky.frame.z) - 0.5) / 255.0;
+    return select(vec4f(col, 1.0), vec4f(0.0), uv.y > sky.frame.w);
+  }
+
   // Measure everything within the hero, not the whole canvas.
   let v = uv.y / sky.frame.w;
   let horizon = sky.frame.x;

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { profile } from "@/data/profile";
+import { themeBootScript } from "@/lib/theme";
 import "./globals.css";
 
 const title = profile.name;
@@ -37,15 +38,20 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Mirrors --bg in globals.css; lib/theme.ts updates it when the theme changes.
   themeColor: "#0a0a0b",
-  colorScheme: "dark",
+  colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GB" className={GeistMono.variable}>
+    // The theme (data-theme) is set by the boot script before React hydrates, so it won't match the server HTML.
+    <html lang="en-GB" className={GeistMono.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body>
         <a className="skip-link" href="#top">
           Skip to content

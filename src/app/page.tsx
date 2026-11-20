@@ -5,6 +5,7 @@ import { AvatarBot } from "@/components/AvatarBot";
 import { Host } from "@/components/Host";
 import { Prompt } from "@/components/Prompt";
 import { CommandMenu, type Command } from "@/components/CommandMenu";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ExperienceDiagram } from "@/components/ExperienceDiagrams";
 import { Timeline } from "@/components/Timeline";
 import { TimelineLight } from "@/components/TimelineLight";
@@ -50,6 +51,7 @@ function commands(articles: Article[]): Command[] {
     { id: "go-projects", group: "go to", label: "projects", hint: "#projects", href: "#projects" },
     { id: "go-writing", group: "go to", label: "writing", hint: "#writing", href: "#writing" },
     { id: "go-contact", group: "go to", label: "contact", hint: "#contact", href: "#contact" },
+    { id: "theme", group: "settings", label: "toggle light / dark theme", hint: "theme", action: "toggle-theme" },
     { id: "copy-email", group: "contact", label: "copy email address", hint: profile.email, copy: profile.email },
     { id: "email", group: "contact", label: "send an email", hint: "mailto", href: `mailto:${profile.email}` },
     { id: "github", group: "elsewhere", label: "github", hint: host(profile.links.github), href: profile.links.github, external: true },
@@ -89,6 +91,7 @@ function Nav({ commands, posts }: { commands: Command[]; posts: string[] }) {
           </a>
           <a href="#contact">contact</a>
         </nav>
+        <ThemeToggle />
         <CommandMenu commands={commands} />
       </div>
       {/* A light ray with a robot riding it while an in-page link travels (lib/seek.ts). */}

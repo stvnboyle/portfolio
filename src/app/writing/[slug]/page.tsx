@@ -7,6 +7,7 @@ import { ReadingProgress } from "@/components/ReadingProgress";
 import { Host } from "@/components/Host";
 import { Prompt } from "@/components/Prompt";
 import { SeekLinks } from "@/components/SeekLinks";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 /** Every post is prerendered; anything else is a 404. */
 export const dynamicParams = false;
@@ -94,6 +95,7 @@ export default async function PostPage({ params }: Params) {
               .md
             </span>
           </Prompt>
+          <ThemeToggle />
           <a className="post-bar__back" href="/">
             cd ..
           </a>
