@@ -1,6 +1,7 @@
 import { effect } from "vgpu";
 import lightShader from "./timeline-light.wgsl";
 import { runScene } from "./scene";
+import { currentTheme } from "@/lib/theme";
 
 type Rgb = [number, number, number];
 
@@ -12,6 +13,12 @@ const LIGHT: Rgb[] = [
   [0.1, 0.92, 0.82], // work: cyan
   [0.35, 0.62, 1.0], // study: blue
   [1.0, 0.36, 0.66], // helloworld: pink
+];
+/** The same lanes as ink for the light theme: deeper, so they hold against the pale page. */
+const INK: Rgb[] = [
+  [0.03, 0.6, 0.53], // work: teal
+  [0.16, 0.42, 0.9], // study: blue
+  [0.85, 0.2, 0.48], // helloworld: pink
 ];
 /** Where the reading line sits, as a fraction of the viewport height. */
 const READING_LINE = 0.55;
@@ -62,6 +69,7 @@ export function startTimelineLight(canvas: HTMLCanvasElement, host: HTMLElement)
             lanes: pad([], MAX_LANES),
             laneTint: pad(LIGHT.map((c) => [...c, 0]), MAX_LANES),
             nodes: pad([], MAX_NODES),
+            look: [0, 0, 0, 0],
           },
         },
       });
@@ -85,12 +93,15 @@ export function startTimelineLight(canvas: HTMLCanvasElement, host: HTMLElement)
           const within = head > top - 40 && head < bottom + 40 ? 1 : 0;
           strength += (within - strength) * (1 - Math.exp(-realDt * 4));
 
+          const paper = currentTheme() === "light";
           light.set({
             light: {
               frame: [canvas.clientWidth, canvas.clientHeight, canvasSurface.size[1] / Math.max(1, canvas.clientHeight), elapsed],
               head: [head, strength, lanes.length, nodes.length],
               lanes: pad(lanes, MAX_LANES),
               nodes: pad(nodes, MAX_NODES),
+              laneTint: pad((paper ? INK : LIGHT).map((c) => [...c, 0]), MAX_LANES),
+              look: [paper ? 1 : 0, 0, 0, 0],
             },
           });
           frame.pass({ target: canvasSurface, clear: [0, 0, 0, 0] }, (pass) => pass.draw(light));

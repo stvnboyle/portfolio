@@ -1,4 +1,5 @@
 import { PALETTE, type Rgb } from "./palette";
+import { currentTheme } from "@/lib/theme";
 
 type Stray = {
   /** Page coordinates (CSS px). */
@@ -202,7 +203,9 @@ export class StrayLayer {
   }
 }
 
+/** Idle body colour: light slate on the dark page, deeper on paper. Mirrors vs_agents in agents-render.wgsl. */
 const IDLE: Rgb = [0.6, 0.63, 0.72];
+const IDLE_PAPER: Rgb = [0.34, 0.37, 0.46];
 const rgb = (c: Rgb, k = 1, alpha = 1) =>
   `rgb(${c.map((v) => Math.round(Math.min(1, Math.max(0, v * k)) * 255)).join(" ")} / ${alpha})`;
 const mixRgb = (a: Rgb, b: Rgb, t: number): Rgb => a.map((v, i) => v + (b[i] - v) * t) as Rgb;
@@ -239,7 +242,7 @@ function taper(c: CanvasRenderingContext2D, ax: number, ay: number, bx: number, 
  */
 export function drawRobot(c: CanvasRenderingContext2D, x: number, y: number, style: RobotStyle) {
   const { vx, vy, tint, weight, alpha, time, seed } = style;
-  const body = mixRgb(IDLE, tint.map((v) => v * 1.1 + 0.06) as Rgb, weight);
+  const body = mixRgb(currentTheme() === "light" ? IDLE_PAPER : IDLE, tint.map((v) => v * 1.1 + 0.06) as Rgb, weight);
   const eye = mixRgb([0.78, 0.96, 1.0], tint.map((v) => v * 1.3 + 0.25) as Rgb, weight);
   const fire = mixRgb([1.0, 0.62, 0.2], tint.map((v) => v * 1.2 + 0.1) as Rgb, 0.55 * weight);
 

@@ -6,8 +6,9 @@ import { education, roles, type Engagement } from "./profile";
  */
 export const LANES = [
   { id: "work", label: "work", tone: "var(--fg)" },
-  { id: "study", label: "study", tone: "#6aa8ff" },
-  { id: "helloworld", label: "helloworld", tone: "#ff8fb8" },
+  // Per-theme colours, defined in globals.css.
+  { id: "study", label: "study", tone: "var(--lane-study)" },
+  { id: "helloworld", label: "helloworld", tone: "var(--lane-helloworld)" },
 ] as const;
 
 export type LaneId = (typeof LANES)[number]["id"];

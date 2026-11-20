@@ -57,6 +57,9 @@
   --del: #f0879b;
   /* Text in a tone colour: pure on dark; on paper, deepened towards --fg so pale tones stay readable. */
   --tone-strength: 100%;
+  /* Timeline lanes (data/timeline.ts). */
+  --lane-study: #6aa8ff;
+  --lane-helloworld: #ff8fb8;
 
   color-scheme: dark;
 }
@@ -90,6 +93,8 @@
   --drop: rgb(30 30 50 / 0.16);
   --del: #c8304f;
   --tone-strength: 72%;
+  --lane-study: #2f6fe0;
+  --lane-helloworld: #d6337a;
 
   color-scheme: light;
 }
@@ -1880,6 +1885,15 @@ kbd {
 
 .graph__node--head {
   background: var(--tone);
+}
+
+/* On paper the graph is drawn in ink: firmer lines, and nodes without the glow, which reads as a smudge. */
+:root[data-theme="light"] .graph__line {
+  background: color-mix(in srgb, var(--tone) 60%, transparent);
+}
+
+:root[data-theme="light"] .graph__node {
+  box-shadow: inset 0 0 0 2px var(--tone);
 }
 
 .commit__date,

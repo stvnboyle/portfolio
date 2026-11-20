@@ -9,6 +9,8 @@ struct View {
   frame: vec4f,
   // The hero copy's box (x0, y0, x1, y1, CSS px): idle agents dim as they cross it.
   copy: vec4f,
+  // x: 1 for the light theme (data-theme, lib/theme.ts), 0 for dark
+  look: vec4f,
 }
 
 // x, y (px), working radius (px), strength (0..1)
@@ -96,14 +98,17 @@ fn vs_agents(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -
   // Empty slots collapse to nothing.
   out.position = select(vec4f(0.0), toClip(world), alive > 0.5);
   out.local = local;
-  out.color = mix(vec3f(0.6, 0.63, 0.72), tint.rgb * 1.1 + vec3f(0.06), smoothstep(0.0, 0.7, tint.w));
+  // Idle robots are light slate on the dark page, a deeper slate on paper. Mirrored in strays.ts.
+  let paper = view.look.x > 0.5;
+  let idle = select(vec3f(0.6, 0.63, 0.72), vec3f(0.34, 0.37, 0.46), paper);
+  out.color = mix(idle, tint.rgb * 1.1 + vec3f(0.06), smoothstep(0.0, 0.7, tint.w));
   out.tint = vec4f(tint.rgb, smoothstep(0.0, 0.7, tint.w));
   // Keep the name readable: idle agents fade out over the copy.
   let edge = max(max(view.copy.x - s.x, s.x - view.copy.z), max(view.copy.y - s.y, s.y - view.copy.w));
   let clear = mix(0.3, 1.0, smoothstep(-24.0, 12.0, edge));
   // Handed to the page (life 3, see agents.wgsl): fade out over the last HANDOFF px of the canvas.
   let handed = select(1.0, smoothstep(0.0, 24.0, view.frame.y - s.y), alive > 2.5);
-  out.alpha = (0.5 + 0.5 * tint.w) * mix(clear, 1.0, tint.w) * handed;
+  out.alpha = (select(0.5, 0.7, paper) + select(0.5, 0.3, paper) * tint.w) * mix(clear, 1.0, tint.w) * handed;
   out.index = ii;
   out.thrust = 0.85 + 0.15 * sin(view.frame.w * 30.0 + f32(ii) * 1.7);
   out.exhaust = vec3f(exhaustDir, 1.8 + burn * 4.2);

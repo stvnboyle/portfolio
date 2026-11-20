@@ -13,6 +13,8 @@ struct Light {
   laneTint: array<vec4f, 4>,
   // x, y (CSS px), lane index, -
   nodes: array<vec4f, 16>,
+  // x: 1 for the light theme (data-theme, lib/theme.ts), 0 for dark
+  look: vec4f,
 }
 
 @group(0) @binding(0) var<uniform> light: Light;
@@ -27,7 +29,14 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let px = 1.0 / light.frame.z;
   let hy = light.head.x;
   let on = light.head.y;
+  // On paper the light is drawn as ink: crisp strokes with only a hint of halo,
+  // since a wide glow reads as a smudge rather than light.
+  let paper = light.look.x > 0.5;
+  let halo = select(1.0, 0.35, paper);
+  // Colour and coverage are kept apart so deep inks stay opaque (dark mode
+  // simply adds light, its alpha taken from the brightest channel).
   var col = vec3f(0.0);
+  var cover = 0.0;
 
   for (var i = 0u; i < u32(light.head.z); i++) {
     let lane = light.lanes[i];
@@ -38,13 +47,17 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     // Trail: bright at the head, fading back up the lane; a short lead below it.
     let behind = hy - p.y;
     let trail = select(exp(behind / 24.0), exp(-behind / 280.0), behind >= 0.0);
-    col += tint * inside * trail * on * (stroke(d, 2.0, px) * 1.1 + exp(-d / 5.0) * 0.3);
+    let w1 = inside * trail * on * (stroke(d, 2.0, px) * 1.1 + exp(-d / 5.0) * 0.3 * halo);
+    col += tint * w1;
+    cover += w1;
 
     // Head: a point of light where the reading line crosses the lane.
     let y = clamp(hy, lane.y, lane.z);
     let reach = 1.0 - smoothstep(0.0, 60.0, abs(hy - y));
     let hd = length(p - vec2f(lane.x, y));
-    col += tint * on * reach * (stroke(hd, 6.0, px) * 1.2 + exp(-hd / 10.0) * 0.55);
+    let w2 = on * reach * (stroke(hd, 6.0, px) * 1.2 + exp(-hd / 10.0) * 0.55 * halo);
+    col += tint * w2;
+    cover += w2;
   }
 
   // Commits the light has passed keep a halo, brightest just after it passes.
@@ -54,9 +67,15 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     let passed = hy - node.y;
     let lit = smoothstep(0.0, 18.0, passed) * (0.3 + 0.7 * exp(-max(passed, 0.0) / 240.0)) * on;
     let d = length(p - node.xy);
-    col += tint * lit * (stroke(abs(d - 5.5), 2.0, px) + exp(-max(d - 5.5, 0.0) / 7.0) * 0.45);
+    let w = lit * (stroke(abs(d - 5.5), 2.0, px) + exp(-max(d - 5.5, 0.0) / 7.0) * 0.45 * halo);
+    col += tint * w;
+    cover += w;
   }
 
+  if (paper) {
+    let a = clamp(cover, 0.0, 1.0);
+    return vec4f(col / max(cover, 1e-4) * a, a);
+  }
   let a = clamp(max(max(col.r, col.g), col.b), 0.0, 1.0);
   return vec4f(min(col, vec3f(1.0)), a);
 }

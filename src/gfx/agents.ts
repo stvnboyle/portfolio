@@ -251,7 +251,11 @@ export const startAgents: StartScene = (canvas, hero, callbacks) =>
       measureCopy();
       canvasSurface.onResize(measureCopy);
 
-      const view = (t: number) => ({ frame: [...canvasSize(), robot, t], copy: copyBox });
+      const view = (t: number) => ({
+        frame: [...canvasSize(), robot, t],
+        copy: copyBox,
+        look: [currentTheme() === "light" ? 1 : 0, 0, 0, 0],
+      });
       // How far a finished task's pulse swells, in task radii; less on phones, where it would fill the screen.
       const pulseReach = small ? 6.5 : 11;
       const renderTasks = () => {
