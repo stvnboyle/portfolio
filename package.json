@@ -16,12 +16,14 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "serve": "^14.2.6",
+    "three": "^0.187.0",
     "vgpu": "^0.5.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
     "@webgpu/types": "^0.1.72",
     "typescript": "^5.9.3"
   }

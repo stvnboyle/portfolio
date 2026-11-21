@@ -2832,3 +2832,24 @@ kbd {
 .article__more a[data-newer] {
   text-align: right;
 }
+
+/* --- lab: 3D robots POC (/lab/robots) ------------------------------------- */
+
+.lab-hero {
+  min-height: calc(100svh - var(--nav-h));
+}
+
+.lab-hero__canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+/* The real hero hides the name until its intro; here it's just there. */
+.hero .lab-hero__name,
+.hero .lab-hero__name [data-g] {
+  color: var(--fg);
+  animation: none;
+}
